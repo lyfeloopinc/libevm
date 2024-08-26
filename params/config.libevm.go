@@ -90,35 +90,29 @@ func notStructMessage[T any]() string {
 
 // UnmarshalJSON implements the [json.Unmarshaler] interface.
 func (c *ChainConfig) UnmarshalJSON(data []byte) error {
-	// We need to bypass this UnmarshalJSON() method when we again call
-	// json.Unmarshal(). The `raw` type won't inherit the method.
-	type raw ChainConfig
+	type raw ChainConfig // doesn't inherit methods so avoids recursing back here (infinitely)
 	cc := &struct {
 		*raw
-		Extra json.RawMessage `json:"extra"`
-	}{raw: (*raw)(c)}
+		Extra *pseudo.Type `json:"extra"`
+	}{
+		raw:   (*raw)(c),                            // embedded to achieve regular JSON unmarshalling
+		Extra: registeredExtras.nilForChainConfig(), // `c.extra` is otherwise unexported
+	}
 
 	if err := json.Unmarshal(data, cc); err != nil {
 		return err
 	}
-	if registeredExtras == nil || len(cc.Extra) == 0 {
-		return nil
-	}
-
-	extra := registeredExtras.newForChainConfig()
-	if err := json.Unmarshal(cc.Extra, extra); err != nil {
-		return err
-	}
-	c.extra = extra
+	c.extra = cc.Extra
 	return nil
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.
 func (c *ChainConfig) MarshalJSON() ([]byte, error) {
+	// See UnmarshalJSON() for rationale.
 	type raw ChainConfig
 	cc := &struct {
 		*raw
-		Extra any `json:"extra"`
+		Extra *pseudo.Type `json:"extra"`
 	}{raw: (*raw)(c), Extra: c.extra}
 	return json.Marshal(cc)
 }
