@@ -44,17 +44,45 @@ func RegisterExtras[C any, R any](e Extras[C, R]) ExtraPayloadGetter[C, R] {
 	}
 	mustBeStruct[C]()
 	mustBeStruct[R]()
-	registeredExtras = &e
-	return ExtraPayloadGetter[C, R]{}
+	registeredExtras = &extraConstructors{
+		chainConfig: pseudo.NewConstructor[C](),
+		rules:       pseudo.NewConstructor[R](),
+		newForRules: e.newForRules,
+	}
+	return e.getter()
 }
 
-// registeredExtras holds the [Extras] registered via [RegisterExtras]. As we
-// don't know `C` and `R` at compile time, it must be an interface.
-var registeredExtras interface {
-	nilForChainConfig() *pseudo.Type
-	nilForRules() *pseudo.Type
-	newForChainConfig() *pseudo.Type
-	newForRules(_ *ChainConfig, _ *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type
+// registeredExtras holds non-generic constructors for the [Extras] types
+// registered via [RegisterExtras].
+var registeredExtras *extraConstructors
+
+type extraConstructors struct {
+	chainConfig, rules pseudo.Constructor
+	newForRules        func(_ *ChainConfig, _ *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type
+}
+
+func (e *Extras[C, R]) newForRules(c *ChainConfig, r *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type {
+	if e.NewRules == nil {
+		return registeredExtras.rules.NilPointer()
+	}
+	rExtra := e.NewRules(c, r, e.getter().FromChainConfig(c), blockNum, isMerge, timestamp)
+	return pseudo.From(rExtra).Type
+}
+
+func (*Extras[C, R]) getter() (g ExtraPayloadGetter[C, R]) { return }
+
+// mustBeStruct panics if `T` isn't a struct.
+func mustBeStruct[T any]() {
+	if k := reflect.TypeFor[T]().Kind(); k != reflect.Struct {
+		panic(notStructMessage[T]())
+	}
+}
+
+// notStructMessage returns the message with which [mustBeStruct] might panic.
+// It exists to avoid change-detector tests should the message contents change.
+func notStructMessage[T any]() string {
+	var x T
+	return fmt.Sprintf("%T is not a struct", x)
 }
 
 // An ExtraPayloadGettter provides strongly typed access to the extra payloads
@@ -74,20 +102,6 @@ func (ExtraPayloadGetter[C, R]) FromRules(r *Rules) *R {
 	return pseudo.MustNewValue[*R](r.extraPayload()).Get()
 }
 
-func mustBeStruct[T any]() {
-	var x T
-	if k := reflect.TypeOf(x).Kind(); k != reflect.Struct {
-		panic(notStructMessage[T]())
-	}
-}
-
-// notStructMessage returns the message with which [mustBeStruct] might panic.
-// It exists to avoid change-detector tests should the message contents change.
-func notStructMessage[T any]() string {
-	var x T
-	return fmt.Sprintf("%T is not a struct", x)
-}
-
 // UnmarshalJSON implements the [json.Unmarshaler] interface.
 func (c *ChainConfig) UnmarshalJSON(data []byte) error {
 	type raw ChainConfig // doesn't inherit methods so avoids recursing back here (infinitely)
@@ -95,8 +109,8 @@ func (c *ChainConfig) UnmarshalJSON(data []byte) error {
 		*raw
 		Extra *pseudo.Type `json:"extra"`
 	}{
-		raw:   (*raw)(c),                            // embedded to achieve regular JSON unmarshalling
-		Extra: registeredExtras.nilForChainConfig(), // `c.extra` is otherwise unexported
+		raw:   (*raw)(c),                                 // embedded to achieve regular JSON unmarshalling
+		Extra: registeredExtras.chainConfig.NilPointer(), // `c.extra` is otherwise unexported
 	}
 
 	if err := json.Unmarshal(data, cc); err != nil {
@@ -143,7 +157,7 @@ func (c *ChainConfig) extraPayload() *pseudo.Type {
 		panic(fmt.Sprintf("%T.ExtraPayload() called before RegisterExtras()", c))
 	}
 	if c.extra == nil {
-		c.extra = registeredExtras.nilForChainConfig()
+		c.extra = registeredExtras.chainConfig.NilPointer()
 	}
 	return c.extra
 }
@@ -155,30 +169,7 @@ func (r *Rules) extraPayload() *pseudo.Type {
 		panic(fmt.Sprintf("%T.ExtraPayload() called before RegisterExtras()", r))
 	}
 	if r.extra == nil {
-		r.extra = registeredExtras.nilForRules()
+		r.extra = registeredExtras.rules.NilPointer()
 	}
 	return r.extra
 }
-
-/**
- * Start of Extras implementing the registeredExtras interface.
- */
-
-func (Extras[C, R]) nilForChainConfig() *pseudo.Type { return pseudo.Zero[*C]().Type }
-func (Extras[C, R]) nilForRules() *pseudo.Type       { return pseudo.Zero[*R]().Type }
-
-func (*Extras[C, R]) newForChainConfig() *pseudo.Type {
-	var x C
-	return pseudo.From(&x).Type
-}
-
-func (e *Extras[C, R]) newForRules(c *ChainConfig, r *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type {
-	if e.NewRules == nil {
-		return e.nilForRules()
-	}
-	return pseudo.From(e.NewRules(c, r, c.extra.Interface().(*C), blockNum, isMerge, timestamp)).Type
-}
-
-/**
- * End of Extras implementing the registeredExtras interface.
- */
