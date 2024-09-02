@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"runtime"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/libevm/pseudo"
 )
 
 // Extras are arbitrary payloads to be added as extra fields in [ChainConfig]
 // and [Rules] structs. See [RegisterExtras].
-type Extras[C any, R any] struct {
+type Extras[C ChainConfigHooks, R RulesHooks] struct {
 	// NewRules, if non-nil is called at the end of [ChainConfig.Rules] with the
 	// newly created [Rules] and other context from the method call. Its
 	// returned value will be the extra payload of the [Rules]. If NewRules is
@@ -38,18 +40,35 @@ type Extras[C any, R any] struct {
 // The payloads can be accessed via the [ExtraPayloadGetter.FromChainConfig] and
 // [ExtraPayloadGetter.FromRules] methods of the getter returned by
 // RegisterExtras.
-func RegisterExtras[C any, R any](e Extras[C, R]) ExtraPayloadGetter[C, R] {
+func RegisterExtras[C ChainConfigHooks, R RulesHooks](e Extras[C, R]) ExtraPayloadGetter[C, R] {
 	if registeredExtras != nil {
 		panic("re-registration of Extras")
 	}
 	mustBeStruct[C]()
 	mustBeStruct[R]()
+
+	getter := e.getter()
 	registeredExtras = &extraConstructors{
 		chainConfig: pseudo.NewConstructor[C](),
 		rules:       pseudo.NewConstructor[R](),
 		newForRules: e.newForRules,
+		getter:      getter,
 	}
-	return e.getter()
+	return getter
+}
+
+// TestOnlyClearRegisteredExtras clears the [Extras] previously passed to
+// [RegisterExtras]. It panics if called from a non-test file.
+//
+// In tests, it SHOULD be called before every call to [RegisterExtras] and then
+// defer-called afterwards. This is a workaround for the single-call limitation
+// on [RegisterExtras].
+func TestOnlyClearRegisteredExtras() {
+	_, file, _, ok := runtime.Caller(1 /* 0 would be here, not our caller */)
+	if !ok || !strings.HasSuffix(file, "_test.go") {
+		panic("call from non-test file")
+	}
+	registeredExtras = nil
 }
 
 // registeredExtras holds non-generic constructors for the [Extras] types
@@ -59,6 +78,10 @@ var registeredExtras *extraConstructors
 type extraConstructors struct {
 	chainConfig, rules pseudo.Constructor
 	newForRules        func(_ *ChainConfig, _ *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type
+	getter             interface { // use hooksFrom<X>() methods for access
+		hooksFromChainConfig(*ChainConfig) ChainConfigHooks
+		hooksFromRules(*Rules) RulesHooks
+	}
 }
 
 func (e *Extras[C, R]) newForRules(c *ChainConfig, r *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type {
@@ -88,7 +111,7 @@ func notStructMessage[T any]() string {
 // An ExtraPayloadGettter provides strongly typed access to the extra payloads
 // carried by [ChainConfig] and [Rules] structs. The only valid way to construct
 // a getter is by a call to [RegisterExtras].
-type ExtraPayloadGetter[C any, R any] struct {
+type ExtraPayloadGetter[C ChainConfigHooks, R RulesHooks] struct {
 	_ struct{} // make godoc show unexported fields so nobody tries to make their own getter ;)
 }
 
@@ -97,9 +120,29 @@ func (ExtraPayloadGetter[C, R]) FromChainConfig(c *ChainConfig) *C {
 	return pseudo.MustNewValue[*C](c.extraPayload()).Get()
 }
 
+// hooksFromChainConfig is equivalent to FromChainConfig(), but returns an
+// interface instead of the concrete type implementing it; this allows it to be
+// used in non-generic code. If the concrete-type value is nil (typically
+// because no [Extras] were registered) a [noopHooks] is returned so it can be
+// used without nil checks.
+func (e ExtraPayloadGetter[C, R]) hooksFromChainConfig(c *ChainConfig) ChainConfigHooks {
+	if h := e.FromChainConfig(c); h != nil {
+		return *h
+	}
+	return NoopHooks{}
+}
+
 // FromRules returns the Rules' extra payload.
 func (ExtraPayloadGetter[C, R]) FromRules(r *Rules) *R {
 	return pseudo.MustNewValue[*R](r.extraPayload()).Get()
+}
+
+// hooksFromRules is the [RulesHooks] equivalent of hooksFromChainConfig().
+func (e ExtraPayloadGetter[C, R]) hooksFromRules(r *Rules) RulesHooks {
+	if h := e.FromRules(r); h != nil {
+		return *h
+	}
+	return NoopHooks{}
 }
 
 // UnmarshalJSON implements the [json.Unmarshaler] interface.
