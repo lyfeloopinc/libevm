@@ -15,12 +15,16 @@ import (
 	"log"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 // In practice this would be a regular init() function but nuances around the
 // testing of this package require it to be called in the Example().
 func initFn() {
+	params.TestOnlyClearRegisteredExtras() // not necessary outside of the example
 	// This registration makes *all* [params.ChainConfig] and [params.Rules]
 	// instances respect the payload types. They do not need to be modified to
 	// know about `extraparams`.
@@ -50,6 +54,11 @@ type ChainConfigExtra struct {
 // [params.Rules].
 type RulesExtra struct {
 	IsMyFork bool
+}
+
+func (r RulesExtra) PrecompileOverride(params.Rules, common.Address) (libevm.PrecompiledContract, bool) {
+	var override vm.PrecompiledContract
+	return override, true
 }
 
 // FromChainConfig returns the extra payload carried by the ChainConfig.
