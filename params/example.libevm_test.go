@@ -56,11 +56,6 @@ type RulesExtra struct {
 	IsMyFork bool
 }
 
-func (r RulesExtra) PrecompileOverride(params.Rules, common.Address) (libevm.PrecompiledContract, bool) {
-	var override vm.PrecompiledContract
-	return override, true
-}
-
 // FromChainConfig returns the extra payload carried by the ChainConfig.
 func FromChainConfig(c *params.ChainConfig) *ChainConfigExtra {
 	return getter.FromChainConfig(c)
@@ -69,6 +64,33 @@ func FromChainConfig(c *params.ChainConfig) *ChainConfigExtra {
 // FromRules returns the extra payload carried by the Rules.
 func FromRules(r *params.Rules) *RulesExtra {
 	return getter.FromRules(r)
+}
+
+// myForkPrecompiledContracts is analogous to the vm.PrecompiledContracts<Fork>
+// maps. Note [RulesExtra.PrecompileOverride] treatment of nil values here.
+var myForkPrecompiledContracts = map[common.Address]vm.PrecompiledContract{
+	//...
+	common.BytesToAddress([]byte{0x2}): nil, // i.e disabled
+	//...
+}
+
+// PrecompileOverride implements the required [params.RuleHooks] method.
+func (rex RulesExtra) PrecompileOverride(_ params.Rules, addr common.Address) (_ libevm.PrecompiledContract, override bool) {
+	if !rex.IsMyFork {
+		return nil, false
+	}
+	p, ok := myForkPrecompiledContracts[addr]
+	// The returned boolean indicates whether or not [vm.EVMInterpreter] MUST
+	// override the address, not what it returns as its own `isPrecompile`
+	// boolean.
+	//
+	// Therefore returning `nil, true` here indicates that the precompile will
+	// be disabled. Returning `false` here indicates that the default precompile
+	// behaviour will be exhibited.
+	//
+	// The same pattern can alternatively be implemented with an explicit
+	// `disabledPrecompiles` set to make the behaviour clearer.
+	return p, ok
 }
 
 // This example demonstrates how the rest of this file would be used from a
