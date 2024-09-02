@@ -39,7 +39,9 @@ type Extras[C ChainConfigHooks, R RulesHooks] struct {
 //
 // The payloads can be accessed via the [ExtraPayloadGetter.FromChainConfig] and
 // [ExtraPayloadGetter.FromRules] methods of the getter returned by
-// RegisterExtras.
+// RegisterExtras. Where stated in the interface definitions, they will also be
+// used as hooks to alter Ethereum behaviour; if this isn't desired then they
+// can embed [NOOPHooks] to satisfy either interface.
 func RegisterExtras[C ChainConfigHooks, R RulesHooks](e Extras[C, R]) ExtraPayloadGetter[C, R] {
 	if registeredExtras != nil {
 		panic("re-registration of Extras")
@@ -60,7 +62,7 @@ func RegisterExtras[C ChainConfigHooks, R RulesHooks](e Extras[C, R]) ExtraPaylo
 // TestOnlyClearRegisteredExtras clears the [Extras] previously passed to
 // [RegisterExtras]. It panics if called from a non-test file.
 //
-// In tests, it SHOULD be called before every call to [RegisterExtras] and then
+// In tests it SHOULD be called before every call to [RegisterExtras] and then
 // defer-called afterwards. This is a workaround for the single-call limitation
 // on [RegisterExtras].
 func TestOnlyClearRegisteredExtras() {
@@ -78,7 +80,9 @@ var registeredExtras *extraConstructors
 type extraConstructors struct {
 	chainConfig, rules pseudo.Constructor
 	newForRules        func(_ *ChainConfig, _ *Rules, blockNum *big.Int, isMerge bool, timestamp uint64) *pseudo.Type
-	getter             interface { // use hooksFrom<X>() methods for access
+	// use top-level hooksFrom<X>() functions instead of these as they handle
+	// instances where no [Extras] were registered.
+	getter interface {
 		hooksFromChainConfig(*ChainConfig) ChainConfigHooks
 		hooksFromRules(*Rules) RulesHooks
 	}
@@ -129,7 +133,7 @@ func (e ExtraPayloadGetter[C, R]) hooksFromChainConfig(c *ChainConfig) ChainConf
 	if h := e.FromChainConfig(c); h != nil {
 		return *h
 	}
-	return NoopHooks{}
+	return NOOPHooks{}
 }
 
 // FromRules returns the Rules' extra payload.
@@ -142,7 +146,7 @@ func (e ExtraPayloadGetter[C, R]) hooksFromRules(r *Rules) RulesHooks {
 	if h := e.FromRules(r); h != nil {
 		return *h
 	}
-	return NoopHooks{}
+	return NOOPHooks{}
 }
 
 // UnmarshalJSON implements the [json.Unmarshaler] interface.

@@ -20,7 +20,7 @@ import (
 // a map of predefined addresses.
 type precompileOverrides struct {
 	contracts        map[common.Address]PrecompiledContract
-	params.NoopHooks // all other hooks
+	params.NOOPHooks // all other hooks
 }
 
 func (o precompileOverrides) PrecompileOverride(_ params.Rules, a common.Address) (libevm.PrecompiledContract, bool) {
@@ -75,8 +75,8 @@ func TestPrecompileOverride(t *testing.T) {
 			}
 
 			params.TestOnlyClearRegisteredExtras()
-			params.RegisterExtras(params.Extras[params.NoopHooks, precompileOverrides]{
-				NewRules: func(_ *params.ChainConfig, _ *params.Rules, _ *params.NoopHooks, blockNum *big.Int, isMerge bool, timestamp uint64) *precompileOverrides {
+			params.RegisterExtras(params.Extras[params.NOOPHooks, precompileOverrides]{
+				NewRules: func(_ *params.ChainConfig, _ *params.Rules, _ *params.NOOPHooks, blockNum *big.Int, isMerge bool, timestamp uint64) *precompileOverrides {
 					return &precompileOverrides{
 						contracts: map[common.Address]PrecompiledContract{
 							tt.addr: precompile,
