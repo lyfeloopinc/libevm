@@ -19,7 +19,7 @@ type ChainConfigHooks interface{}
 // RulesHooks are required for all types registered as [Extras] for [Rules]
 // payloads.
 type RulesHooks interface {
-	CanExecuteTransaction(from, to common.Address, _ libevm.StateReader) error
+	CanExecuteTransaction(from common.Address, to *common.Address, _ libevm.StateReader) error
 	CanCreateContract(caller, origin common.Address, _ libevm.StateReader) error
 	// PrecompileOverride signals whether or not the EVM interpreter MUST
 	// override its treatment of the address when deciding if it is a
@@ -60,7 +60,7 @@ var _ interface {
 	RulesHooks
 } = NOOPHooks{}
 
-func (NOOPHooks) CanExecuteTransaction(_, _ common.Address, _ libevm.StateReader) error {
+func (NOOPHooks) CanExecuteTransaction(_ common.Address, _ *common.Address, _ libevm.StateReader) error {
 	return nil
 }
 
