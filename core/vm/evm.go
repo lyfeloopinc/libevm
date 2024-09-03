@@ -38,7 +38,7 @@ type (
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
-	if p, override := evm.chainRules.PrecompileOverride(addr); override {
+	if p, override := evm.chainRules.Hooks().PrecompileOverride(addr); override {
 		return p, p != nil
 	}
 	var precompiles map[common.Address]PrecompiledContract

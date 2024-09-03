@@ -18,33 +18,25 @@ type RulesHooks interface {
 	// interpreter will treat the address as a precompile i.f.f the
 	// [PrecompiledContract] is non-nil. If it returns `false` then the default
 	// precompile behaviour is honoured.
-	PrecompileOverride(Rules, common.Address) (_ libevm.PrecompiledContract, override bool)
+	PrecompileOverride(common.Address) (_ libevm.PrecompiledContract, override bool)
 }
 
-// hooksFromChainConfig returns the registered hooks, or [NOOPHooks] if none
-// were registered.
-func hooksFromChainConfig(c *ChainConfig) ChainConfigHooks {
+// Hooks returns the hooks registered with [RegisterExtras], or [NOOPHooks] if
+// none were registered.
+func (c *ChainConfig) Hooks() ChainConfigHooks {
 	if e := registeredExtras; e != nil {
 		return e.getter.hooksFromChainConfig(c)
 	}
 	return NOOPHooks{}
 }
 
-// hooksFromRules returns the registered hooks, or [NOOPHooks] if none were
-// registered.
-func hooksFromRules(r *Rules) RulesHooks {
+// Hooks returns the hooks registered with [RegisterExtras], or [NOOPHooks] if
+// none were registered.
+func (r *Rules) Hooks() RulesHooks {
 	if e := registeredExtras; e != nil {
 		return e.getter.hooksFromRules(r)
 	}
 	return NOOPHooks{}
-}
-
-// PrecompileOverride is a wrapper for the equivalent method of the registered
-// [RulesHooks] carried by the Rules. If no [Extras] were registered, a
-// [NOOPHooks] is used instead, such that the default precompile behaviour is
-// exhibited.
-func (r Rules) PrecompileOverride(addr common.Address) (libevm.PrecompiledContract, bool) {
-	return hooksFromRules(&r).PrecompileOverride(r, addr)
 }
 
 // NOOPHooks implements both [ChainConfigHooks] and [RulesHooks] such that every
@@ -61,6 +53,6 @@ var _ interface {
 
 // PrecompileOverride instructs the EVM interpreter to use the default
 // precompile behaviour.
-func (NOOPHooks) PrecompileOverride(Rules, common.Address) (libevm.PrecompiledContract, bool) {
+func (NOOPHooks) PrecompileOverride(common.Address) (libevm.PrecompiledContract, bool) {
 	return nil, false
 }

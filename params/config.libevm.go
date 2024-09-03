@@ -156,8 +156,10 @@ func (c *ChainConfig) UnmarshalJSON(data []byte) error {
 		*raw
 		Extra *pseudo.Type `json:"extra"`
 	}{
-		raw:   (*raw)(c),                                 // embedded to achieve regular JSON unmarshalling
-		Extra: registeredExtras.chainConfig.NilPointer(), // `c.extra` is otherwise unexported
+		raw: (*raw)(c), // embedded to achieve regular JSON unmarshalling
+	}
+	if e := registeredExtras; e != nil {
+		cc.Extra = e.chainConfig.NilPointer() // `c.extra` is otherwise unexported
 	}
 
 	if err := json.Unmarshal(data, cc); err != nil {

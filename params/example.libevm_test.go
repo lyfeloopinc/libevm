@@ -75,8 +75,8 @@ var myForkPrecompiledContracts = map[common.Address]vm.PrecompiledContract{
 }
 
 // PrecompileOverride implements the required [params.RuleHooks] method.
-func (rex RulesExtra) PrecompileOverride(_ params.Rules, addr common.Address) (_ libevm.PrecompiledContract, override bool) {
-	if !rex.IsMyFork {
+func (r RulesExtra) PrecompileOverride(addr common.Address) (_ libevm.PrecompiledContract, override bool) {
+	if !r.IsMyFork {
 		return nil, false
 	}
 	p, ok := myForkPrecompiledContracts[addr]
