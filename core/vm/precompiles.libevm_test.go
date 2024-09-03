@@ -23,7 +23,7 @@ type precompileOverrides struct {
 	params.NOOPHooks // all other hooks
 }
 
-func (o precompileOverrides) PrecompileOverride(_ params.Rules, a common.Address) (libevm.PrecompiledContract, bool) {
+func (o precompileOverrides) PrecompileOverride(a common.Address) (libevm.PrecompiledContract, bool) {
 	c, ok := o.contracts[a]
 	return c, ok
 }

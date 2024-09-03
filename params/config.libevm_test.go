@@ -12,6 +12,7 @@ import (
 
 type rawJSON struct {
 	json.RawMessage
+	NOOPHooks
 }
 
 var _ interface {
@@ -128,6 +129,13 @@ func TestExtrasPanic(t *testing.T) {
 			new(Rules).extraPayload()
 		},
 		"before RegisterExtras",
+	)
+
+	assertPanics(
+		t, func() {
+			mustBeStruct[int]()
+		},
+		notStructMessage[int](),
 	)
 
 	RegisterExtras(Extras[struct{ ChainConfigHooks }, struct{ RulesHooks }]{})
