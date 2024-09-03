@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -15,6 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
 )
+
+func RunPrecompiledContract(p PrecompiledContract, input []byte, suppliedGas uint64, logger *tracing.Hooks) (ret []byte, remainingGas uint64, err error) {
+	return (*evmCallArgs)(nil).RunPrecompiledContract(p, input, suppliedGas, logger)
+}
 
 // precompileOverrides is a [params.RulesHooks] that overrides precompiles from
 // a map of predefined addresses.
