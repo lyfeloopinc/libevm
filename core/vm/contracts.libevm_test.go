@@ -16,6 +16,10 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+func RunPrecompiledContract(p PrecompiledContract, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error) {
+	return (*evmCallArgs)(nil).RunPrecompiledContract(p, input, suppliedGas)
+}
+
 // precompileOverrides is a [params.RulesHooks] that overrides precompiles from
 // a map of predefined addresses.
 type precompileOverrides struct {
