@@ -39,3 +39,7 @@ type StateReader interface {
 	AddressInAccessList(addr common.Address) bool
 	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
 }
+
+type ContractCreation struct {
+	Origin, Caller, Contract common.Address
+}

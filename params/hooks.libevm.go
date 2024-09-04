@@ -20,7 +20,7 @@ type ChainConfigHooks interface{}
 // payloads.
 type RulesHooks interface {
 	CanExecuteTransaction(from common.Address, to *common.Address, _ libevm.StateReader) error
-	CanCreateContract(caller, origin common.Address, _ libevm.StateReader) error
+	CanCreateContract(*libevm.ContractCreation, libevm.StateReader) error
 	// PrecompileOverride signals whether or not the EVM interpreter MUST
 	// override its treatment of the address when deciding if it is a
 	// precompiled contract. If PrecompileOverride returns `true` then the
@@ -64,7 +64,7 @@ func (NOOPHooks) CanExecuteTransaction(_ common.Address, _ *common.Address, _ li
 	return nil
 }
 
-func (NOOPHooks) CanCreateContract(_, _ common.Address, _ libevm.StateReader) error {
+func (NOOPHooks) CanCreateContract(*libevm.ContractCreation, libevm.StateReader) error {
 	return nil
 }
 
