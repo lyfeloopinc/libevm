@@ -160,32 +160,51 @@ func (e ExtraPayloadGetter[C, R]) hooksFromRules(r *Rules) RulesHooks {
 // UnmarshalJSON implements the [json.Unmarshaler] interface.
 func (c *ChainConfig) UnmarshalJSON(data []byte) error {
 	type raw ChainConfig // doesn't inherit methods so avoids recursing back here (infinitely)
-	cc := &struct {
-		*raw
-		Extra *pseudo.Type `json:"extra"`
-	}{
-		raw: (*raw)(c), // embedded to achieve regular JSON unmarshalling
-	}
-	if e := registeredExtras; e != nil {
-		cc.Extra = e.chainConfig.NilPointer() // `c.extra` is otherwise unexported
-	}
-
+	cc := &raw{}
 	if err := json.Unmarshal(data, cc); err != nil {
 		return err
 	}
-	c.extra = cc.Extra
-	return nil
+
+	*c = ChainConfig(*cc)
+
+	if registeredExtras == nil {
+		return nil
+	}
+
+	c.extra = registeredExtras.chainConfig.NilPointer()
+	return json.Unmarshal(data, c.extra)
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.
 func (c *ChainConfig) MarshalJSON() ([]byte, error) {
 	// See UnmarshalJSON() for rationale.
 	type raw ChainConfig
-	cc := &struct {
-		*raw
-		Extra *pseudo.Type `json:"extra"`
-	}{raw: (*raw)(c), Extra: c.extra}
-	return json.Marshal(cc)
+	tmp, err := json.Marshal(raw(*c))
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map so we can add the extra fields.
+	asMap := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(tmp, &asMap); err != nil {
+		return nil, err
+	}
+
+	// Similarly, obtain [c.extra] as a map.
+	tmp, err = json.Marshal(c.extra)
+	if err != nil {
+		return nil, err
+	}
+	extraAsMap := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(tmp, &extraAsMap); err != nil {
+		return nil, err
+	}
+
+	// Merge the two maps and marshal the result.
+	for k, v := range extraAsMap {
+		asMap[k] = v
+	}
+	return json.Marshal(asMap)
 }
 
 var _ interface {
