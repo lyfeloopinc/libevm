@@ -120,9 +120,7 @@ func ExampleExtraPayloadGetter() {
 	const forkTime = 530003640
 	jsonData := fmt.Sprintf(`{
 		"chainId": 1234,
-		"extra": {
-			"myForkTime": %d
-		}
+		"myForkTime": %d
 	}`, forkTime)
 
 	// Because [params.RegisterExtras] has been called, unmarshalling a JSON
