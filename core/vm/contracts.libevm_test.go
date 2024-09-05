@@ -79,16 +79,12 @@ func TestPrecompileOverride(t *testing.T) {
 
 func TestNewStatefulPrecompile(t *testing.T) {
 	var (
-		caller, precompile common.Address
-		input              = make([]byte, 8)
-		slot, value        common.Hash
+		precompile common.Address
+		slot       common.Hash
 	)
 	rng := rand.New(rand.NewSource(314159))
-	rng.Read(caller[:])
 	rng.Read(precompile[:])
-	rng.Read(input[:])
 	rng.Read(slot[:])
-	rng.Read(value[:])
 
 	const gasLimit = 1e6
 	gasCost := rng.Uint64n(gasLimit)
@@ -113,6 +109,15 @@ func TestNewStatefulPrecompile(t *testing.T) {
 	}
 	hooks.RegisterForRules(t)
 
+	var (
+		caller common.Address
+		input  = make([]byte, 8)
+		value  common.Hash
+	)
+	rng.Read(caller[:])
+	rng.Read(input)
+	rng.Read(value[:])
+
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(precompile, slot, value)
 	wantReturnData := makeOutput(caller, precompile, input, value)
@@ -125,94 +130,68 @@ func TestNewStatefulPrecompile(t *testing.T) {
 }
 
 func TestCanCreateContract(t *testing.T) {
-	// We need to prove end-to-end plumbing of contract-creation addresses,
-	// state, and any returned error. We therefore condition an error on a state
-	// value being set, and that error contains the addresses.
-	makeErr := func(cc *libevm.ContractCreation) error {
-		return fmt.Errorf("Origin: %v Caller: %v Contract: %v", cc.Origin, cc.Caller, cc.Contract)
+	var (
+		account common.Address
+		slot    common.Hash
+	)
+	rng := rand.New(rand.NewSource(142857))
+	rng.Read(account[:])
+	rng.Read(slot[:])
+
+	makeErr := func(cc *libevm.ContractCreation, stateVal common.Hash) error {
+		return fmt.Errorf("Origin: %v Caller: %v Contract: %v State: %v", cc.Origin, cc.Caller, cc.Contract, stateVal)
 	}
-	slot := common.Hash(crypto.Keccak256([]byte("slot")))
-	value := common.Hash(crypto.Keccak256([]byte("value")))
 	hooks := &hookstest.Stub{
 		CanCreateContractFn: func(cc *libevm.ContractCreation, s libevm.StateReader) error {
-			if s.GetState(common.Address{}, slot).Cmp(value) != 0 {
-				return makeErr(cc)
-			}
-			return nil
+			return makeErr(cc, s.GetState(account, slot))
 		},
 	}
 	hooks.RegisterForRules(t)
 
-	origin := common.Address{'o', 'r', 'i', 'g', 'i', 'n'}
-	caller := common.Address{'c', 'a', 'l', 'l', 'e', 'r'}
-	create := crypto.CreateAddress(caller, 0)
 	var (
-		code []byte
-		salt [32]byte
+		origin, caller common.Address
+		value          common.Hash
+		code           = make([]byte, 8)
+		salt           [32]byte
 	)
+	rng.Read(origin[:])
+	rng.Read(caller[:])
+	rng.Read(value[:])
+	rng.Read(code)
+	rng.Read(salt[:])
+
+	create := crypto.CreateAddress(caller, 0)
 	create2 := crypto.CreateAddress2(caller, salt, crypto.Keccak256(code))
 
 	tests := []struct {
-		name                          string
-		setState                      bool
-		wantCreateErr, wantCreate2Err error
+		name    string
+		create  func(*vm.EVM) ([]byte, common.Address, uint64, error)
+		wantErr error
 	}{
 		{
-			name:           "no state => return error",
-			setState:       false,
-			wantCreateErr:  makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create}),
-			wantCreate2Err: makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create2}),
+			name: "Create",
+			create: func(evm *vm.EVM) ([]byte, common.Address, uint64, error) {
+				return evm.Create(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0))
+			},
+			wantErr: makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create}, value),
 		},
 		{
-			name:     "state set => no error",
-			setState: true,
+			name: "Create2",
+			create: func(evm *vm.EVM) ([]byte, common.Address, uint64, error) {
+				return evm.Create2(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0), new(uint256.Int).SetBytes(salt[:]))
+			},
+			wantErr: makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create2}, value),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateDB, evm := ethtest.NewZeroEVM(t)
+			state, evm := ethtest.NewZeroEVM(t)
+			state.SetState(account, slot, value)
 			evm.TxContext.Origin = origin
 
-			if tt.setState {
-				stateDB.SetState(common.Address{}, slot, value)
-			}
-
-			methods := []struct {
-				name     string
-				deploy   func() ([]byte, common.Address, uint64, error)
-				wantErr  error
-				wantAddr common.Address
-			}{
-				{
-					name: "Create",
-					deploy: func() ([]byte, common.Address, uint64, error) {
-						return evm.Create(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0))
-					},
-					wantErr:  tt.wantCreateErr,
-					wantAddr: create,
-				},
-				{
-					name: "Create2",
-					deploy: func() ([]byte, common.Address, uint64, error) {
-						return evm.Create2(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0), new(uint256.Int).SetBytes(salt[:]))
-					},
-					wantErr:  tt.wantCreate2Err,
-					wantAddr: create2,
-				},
-			}
-
-			for _, m := range methods {
-				t.Run(m.name, func(t *testing.T) {
-					_, gotAddr, _, err := m.deploy()
-					if want := m.wantErr; want == nil {
-						require.NoError(t, err)
-						assert.Equal(t, m.wantAddr, gotAddr)
-					} else {
-						require.EqualError(t, err, want.Error())
-					}
-				})
-			}
+			_, _, _, err := tt.create(evm)
+			require.EqualError(t, err, tt.wantErr.Error())
 		})
 	}
 }
