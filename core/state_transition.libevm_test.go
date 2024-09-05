@@ -12,7 +12,7 @@ import (
 )
 
 func TestCanExecuteTransaction(t *testing.T) {
-	rng := ethtest.NewRand(42)
+	rng := ethtest.NewPseudoRand(42)
 	account := rng.Address()
 	slot := rng.Hash()
 

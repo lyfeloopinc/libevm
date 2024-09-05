@@ -1,17 +1,23 @@
+// Package ethtest provides utility functions for use in testing
+// Ethereum-related functionality.
 package ethtest
 
 import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+// NewZeroEVM returns a new EVM backed by a [rawdb.NewMemoryDatabase]; all other
+// arguments to [vm.NewEVM] are the zero values of their respective types,
+// except for the use of [core.CanTransfer] and [core.Transfer] instead of nil
+// functions.
 func NewZeroEVM(tb testing.TB) (*state.StateDB, *vm.EVM) {
 	tb.Helper()
 
@@ -20,8 +26,8 @@ func NewZeroEVM(tb testing.TB) (*state.StateDB, *vm.EVM) {
 
 	return sdb, vm.NewEVM(
 		vm.BlockContext{
-			CanTransfer: func(_ vm.StateDB, _ common.Address, _ *uint256.Int) bool { return true },
-			Transfer:    func(_ vm.StateDB, _, _ common.Address, _ *uint256.Int) {},
+			CanTransfer: core.CanTransfer,
+			Transfer:    core.Transfer,
 		},
 		vm.TxContext{},
 		sdb,

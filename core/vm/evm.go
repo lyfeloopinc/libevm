@@ -428,7 +428,7 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *uint256.Int, address common.Address, typ OpCode) (ret []byte, createAddress common.Address, leftOverGas uint64, err error) {
-	cc := &libevm.ContractCreation{Origin: evm.Origin, Caller: caller.Address(), Contract: address}
+	cc := &libevm.AddressContext{Origin: evm.Origin, Caller: caller.Address(), Self: address}
 	if err := evm.chainRules.Hooks().CanCreateContract(cc, evm.StateDB); err != nil {
 		return nil, common.Address{}, gas, err
 	}

@@ -28,6 +28,8 @@ type evmCallArgs struct {
 	value  *uint256.Int
 }
 
+// run runs the [PrecompiledContract], differentiating between stateful and
+// regular types.
 func (args *evmCallArgs) run(p PrecompiledContract, input []byte) (ret []byte, err error) {
 	if p, ok := p.(statefulPrecompile); ok {
 		return p.run(args.evm.StateDB, &args.evm.chainRules, args.caller.Address(), args.addr, input)
@@ -35,11 +37,15 @@ func (args *evmCallArgs) run(p PrecompiledContract, input []byte) (ret []byte, e
 	return p.Run(input)
 }
 
-// A StatefulPrecompileFunc...
-type StatefulPrecompfileFunc func(_ StateDB, _ *params.Rules, caller, self common.Address, input []byte) ([]byte, error)
+// PrecompiledStatefulRun is the stateful equivalent of the Run() method of a
+// [PrecompiledContract].
+type PrecompiledStatefulRun func(_ StateDB, _ *params.Rules, caller, self common.Address, input []byte) ([]byte, error)
 
-// NewStatefulPrecompile...
-func NewStatefulPrecompile(run StatefulPrecompfileFunc, requiredGas func([]byte) uint64) PrecompiledContract {
+// NewStatefulPrecompile constructs a new PrecompiledContract that can be used
+// via an [EVM] instance but MUST NOT be called directly; a direct call to Run()
+// reserves the right to panic. See other requirements defined in the comments
+// on [PrecompiledContract].
+func NewStatefulPrecompile(run PrecompiledStatefulRun, requiredGas func([]byte) uint64) PrecompiledContract {
 	return statefulPrecompile{
 		gas: requiredGas,
 		run: run,
@@ -48,7 +54,7 @@ func NewStatefulPrecompile(run StatefulPrecompfileFunc, requiredGas func([]byte)
 
 type statefulPrecompile struct {
 	gas func([]byte) uint64
-	run StatefulPrecompfileFunc
+	run PrecompiledStatefulRun
 }
 
 func (p statefulPrecompile) RequiredGas(input []byte) uint64 {

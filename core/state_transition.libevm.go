@@ -1,5 +1,7 @@
 package core
 
+// canExecuteTransaction is a convenience wrapper for calling the
+// [params.RulesHooks.CanExecuteTransaction] hook.
 func (st *StateTransition) canExecuteTransaction() error {
 	vmCtx := st.evm.GetVMContext()
 	rules := st.evm.ChainConfig().Rules(vmCtx.BlockNumber, vmCtx.Random != nil, vmCtx.Time)

@@ -41,6 +41,13 @@ type StateReader interface {
 	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
 }
 
-type ContractCreation struct {
-	Origin, Caller, Contract common.Address
+// AddressContext carries addresses available to contexts such as calls and
+// contract creation.
+//
+// With respect to contract creation, the Self address MAY be the predicted
+// address of the contract about to be deployed, which may not exist yet.
+type AddressContext struct {
+	Origin common.Address // equivalent to vm.ORIGIN op code
+	Caller common.Address // equivalent to vm.CALLER op code
+	Self   common.Address // equivalent to vm.ADDRESS op code
 }

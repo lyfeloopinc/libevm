@@ -5,30 +5,36 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-type Rand struct {
+// PseudoRand extends [rand.Rand] (*not* crypto/rand).
+type PseudoRand struct {
 	*rand.Rand
 }
 
-func NewRand(seed uint64) *Rand {
-	return &Rand{rand.New(rand.NewSource(seed))}
+// NewPseudoRand returns a new PseudoRand with the given seed.
+func NewPseudoRand(seed uint64) *PseudoRand {
+	return &PseudoRand{rand.New(rand.NewSource(seed))}
 }
 
-func (r *Rand) Address() (a common.Address) {
+// Address returns a pseudorandom address.
+func (r *PseudoRand) Address() (a common.Address) {
 	r.Read(a[:])
 	return a
 }
 
-func (r *Rand) AddressPtr() *common.Address {
+// AddressPtr returns a pointer to a pseudorandom address.
+func (r *PseudoRand) AddressPtr() *common.Address {
 	a := r.Address()
 	return &a
 }
 
-func (r *Rand) Hash() (h common.Hash) {
+// Hash returns a pseudorandom hash.
+func (r *PseudoRand) Hash() (h common.Hash) {
 	r.Read(h[:])
 	return h
 }
 
-func (r *Rand) Bytes(n uint) []byte {
+// Bytes returns `n` pseudorandom bytes.
+func (r *PseudoRand) Bytes(n uint) []byte {
 	b := make([]byte, n)
 	r.Read(b)
 	return b
