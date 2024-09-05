@@ -2,6 +2,7 @@ package hookstest
 
 import (
 	"math/big"
+	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/libevm"
@@ -16,12 +17,14 @@ type Stub struct {
 	CanCreateContractFn     func(*libevm.ContractCreation, libevm.StateReader) error
 }
 
-func (s *Stub) RegisterForRules() {
+func (s *Stub) RegisterForRules(tb testing.TB) {
+	params.TestOnlyClearRegisteredExtras()
 	params.RegisterExtras(params.Extras[params.NOOPHooks, Stub]{
 		NewRules: func(_ *params.ChainConfig, _ *params.Rules, _ *params.NOOPHooks, blockNum *big.Int, isMerge bool, timestamp uint64) *Stub {
 			return s
 		},
 	})
+	tb.Cleanup(params.TestOnlyClearRegisteredExtras)
 }
 
 func (s Stub) PrecompileOverride(a common.Address) (libevm.PrecompiledContract, bool) {

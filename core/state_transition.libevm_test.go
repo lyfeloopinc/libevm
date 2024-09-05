@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/libevm/hookstest"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,9 +33,7 @@ func TestCanExecuteTransaction(t *testing.T) {
 			return makeErr(from, to, s.GetState(account, slot))
 		},
 	}
-	params.TestOnlyClearRegisteredExtras()
-	hooks.RegisterForRules()
-	t.Cleanup(params.TestOnlyClearRegisteredExtras)
+	hooks.RegisterForRules(t)
 
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(account, slot, value)

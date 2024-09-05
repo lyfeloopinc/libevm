@@ -63,8 +63,8 @@ func RegisterExtras[C ChainConfigHooks, R RulesHooks](e Extras[C, R]) ExtraPaylo
 // [RegisterExtras]. It panics if called from a non-testing call stack.
 //
 // In tests it SHOULD be called before every call to [RegisterExtras] and then
-// defer-called afterwards. This is a workaround for the single-call limitation
-// on [RegisterExtras].
+// defer-called afterwards, either directly or via testing.TB.Cleanup(). This is
+// a workaround for the single-call limitation on [RegisterExtras].
 func TestOnlyClearRegisteredExtras() {
 	pc := make([]uintptr, 10)
 	runtime.Callers(0, pc)
