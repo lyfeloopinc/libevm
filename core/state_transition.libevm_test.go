@@ -15,15 +15,11 @@ import (
 func TestCanExecuteTransaction(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	var (
-		from, to    common.Address
-		account     common.Address
-		slot, value common.Hash
+		account common.Address
+		slot    common.Hash
 	)
-	rng.Read(from[:])
-	rng.Read(to[:])
 	rng.Read(account[:])
 	rng.Read(slot[:])
-	rng.Read(value[:])
 
 	makeErr := func(from common.Address, to *common.Address, val common.Hash) error {
 		return fmt.Errorf("From: %v To: %v State: %v", from, to, val)
@@ -34,6 +30,14 @@ func TestCanExecuteTransaction(t *testing.T) {
 		},
 	}
 	hooks.RegisterForRules(t)
+
+	var (
+		from, to common.Address
+		value    common.Hash
+	)
+	rng.Read(from[:])
+	rng.Read(to[:])
+	rng.Read(value[:])
 
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(account, slot, value)
