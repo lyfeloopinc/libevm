@@ -78,13 +78,9 @@ func TestPrecompileOverride(t *testing.T) {
 }
 
 func TestNewStatefulPrecompile(t *testing.T) {
-	var (
-		precompile common.Address
-		slot       common.Hash
-	)
-	rng := rand.New(rand.NewSource(314159))
-	rng.Read(precompile[:])
-	rng.Read(slot[:])
+	rng := ethtest.NewRand(314159)
+	precompile := rng.Address()
+	slot := rng.Hash()
 
 	const gasLimit = 1e6
 	gasCost := rng.Uint64n(gasLimit)
@@ -109,14 +105,9 @@ func TestNewStatefulPrecompile(t *testing.T) {
 	}
 	hooks.RegisterForRules(t)
 
-	var (
-		caller common.Address
-		input  = make([]byte, 8)
-		value  common.Hash
-	)
-	rng.Read(caller[:])
-	rng.Read(input)
-	rng.Read(value[:])
+	caller := rng.Address()
+	input := rng.Bytes(8)
+	value := rng.Hash()
 
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(precompile, slot, value)
@@ -130,13 +121,9 @@ func TestNewStatefulPrecompile(t *testing.T) {
 }
 
 func TestCanCreateContract(t *testing.T) {
-	var (
-		account common.Address
-		slot    common.Hash
-	)
-	rng := rand.New(rand.NewSource(142857))
-	rng.Read(account[:])
-	rng.Read(slot[:])
+	rng := ethtest.NewRand(142857)
+	account := rng.Address()
+	slot := rng.Hash()
 
 	makeErr := func(cc *libevm.ContractCreation, stateVal common.Hash) error {
 		return fmt.Errorf("Origin: %v Caller: %v Contract: %v State: %v", cc.Origin, cc.Caller, cc.Contract, stateVal)
@@ -148,17 +135,11 @@ func TestCanCreateContract(t *testing.T) {
 	}
 	hooks.RegisterForRules(t)
 
-	var (
-		origin, caller common.Address
-		value          common.Hash
-		code           = make([]byte, 8)
-		salt           [32]byte
-	)
-	rng.Read(origin[:])
-	rng.Read(caller[:])
-	rng.Read(value[:])
-	rng.Read(code)
-	rng.Read(salt[:])
+	origin := rng.Address()
+	caller := rng.Address()
+	value := rng.Hash()
+	code := rng.Bytes(8)
+	salt := rng.Hash()
 
 	create := crypto.CreateAddress(caller, 0)
 	create2 := crypto.CreateAddress2(caller, salt, crypto.Keccak256(code))
