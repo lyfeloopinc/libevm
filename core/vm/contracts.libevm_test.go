@@ -64,8 +64,7 @@ func TestPrecompileOverride(t *testing.T) {
 					},
 				},
 			}
-			params.TestOnlyClearRegisteredExtras()
-			hooks.RegisterForRules()
+			hooks.RegisterForRules(t)
 
 			t.Run(fmt.Sprintf("%T.Call([overridden precompile address = %v])", &vm.EVM{}, tt.addr), func(t *testing.T) {
 				_, evm := ethtest.NewZeroEVM(t)
@@ -76,6 +75,53 @@ func TestPrecompileOverride(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestNewStatefulPrecompile(t *testing.T) {
+	var (
+		caller, precompile common.Address
+		input              = make([]byte, 8)
+		slot, value        common.Hash
+	)
+	rng := rand.New(rand.NewSource(314159))
+	rng.Read(caller[:])
+	rng.Read(precompile[:])
+	rng.Read(input[:])
+	rng.Read(slot[:])
+	rng.Read(value[:])
+
+	const gasLimit = 1e6
+	gasCost := rng.Uint64n(gasLimit)
+
+	makeOutput := func(caller, self common.Address, input []byte, stateVal common.Hash) []byte {
+		return []byte(fmt.Sprintf(
+			"Caller: %v Precompile: %v State: %v Input: %#x",
+			caller, self, stateVal, input,
+		))
+	}
+	hooks := &hookstest.Stub{
+		PrecompileOverrides: map[common.Address]libevm.PrecompiledContract{
+			precompile: vm.NewStatefulPrecompile(
+				func(state vm.StateDB, _ *params.Rules, caller, self common.Address, input []byte) ([]byte, error) {
+					return makeOutput(caller, self, input, state.GetState(precompile, slot)), nil
+				},
+				func(b []byte) uint64 {
+					return gasCost
+				},
+			),
+		},
+	}
+	hooks.RegisterForRules(t)
+
+	state, evm := ethtest.NewZeroEVM(t)
+	state.SetState(precompile, slot, value)
+	wantReturnData := makeOutput(caller, precompile, input, value)
+	wantGasLeft := gasLimit - gasCost
+
+	gotReturnData, gotGasLeft, err := evm.Call(vm.AccountRef(caller), precompile, input, gasLimit, uint256.NewInt(0))
+	require.NoError(t, err)
+	assert.Equal(t, wantReturnData, gotReturnData)
+	assert.Equal(t, wantGasLeft, gotGasLeft)
 }
 
 func TestCanCreateContract(t *testing.T) {
@@ -95,9 +141,7 @@ func TestCanCreateContract(t *testing.T) {
 			return nil
 		},
 	}
-	params.TestOnlyClearRegisteredExtras()
-	hooks.RegisterForRules()
-	t.Cleanup(params.TestOnlyClearRegisteredExtras)
+	hooks.RegisterForRules(t)
 
 	origin := common.Address{'o', 'r', 'i', 'g', 'i', 'n'}
 	caller := common.Address{'c', 'a', 'l', 'l', 'e', 'r'}
