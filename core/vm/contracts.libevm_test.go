@@ -1,15 +1,14 @@
-package vm
+package vm_test
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/libevm"
+	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/libevm/hookstest"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -17,12 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
 )
-
-// The original RunPrecompiledContract was migrated to being a method on
-// [evmCallArgs]. We need to replace it for use by regular geth tests.
-func RunPrecompiledContract(p PrecompiledContract, input []byte, suppliedGas uint64, logger *tracing.Hooks) (ret []byte, remainingGas uint64, err error) {
-	return (*evmCallArgs)(nil).RunPrecompiledContract(p, input, suppliedGas, logger)
-}
 
 type precompileStub struct {
 	requiredGas uint64
@@ -52,7 +45,7 @@ func TestPrecompileOverride(t *testing.T) {
 	}
 
 	rng := rand.New(rand.NewSource(42))
-	for _, addr := range PrecompiledAddressesCancun {
+	for _, addr := range vm.PrecompiledAddressesCancun {
 		tests = append(tests, test{
 			name:        fmt.Sprintf("existing precompile %v", addr),
 			addr:        addr,
@@ -74,8 +67,9 @@ func TestPrecompileOverride(t *testing.T) {
 			params.TestOnlyClearRegisteredExtras()
 			hooks.RegisterForRules()
 
-			t.Run(fmt.Sprintf("%T.Call([overridden precompile address = %v])", &EVM{}, tt.addr), func(t *testing.T) {
-				gotData, gotGasLeft, err := newEVM(t).Call(AccountRef{}, tt.addr, nil, gasLimit, uint256.NewInt(0))
+			t.Run(fmt.Sprintf("%T.Call([overridden precompile address = %v])", &vm.EVM{}, tt.addr), func(t *testing.T) {
+				_, evm := ethtest.NewZeroEVM(t)
+				gotData, gotGasLeft, err := evm.Call(vm.AccountRef{}, tt.addr, nil, gasLimit, uint256.NewInt(0))
 				require.NoError(t, err)
 				assert.Equal(t, tt.stubData, gotData, "contract's return data")
 				assert.Equal(t, gasLimit-tt.requiredGas, gotGasLeft, "gas left")
@@ -103,6 +97,7 @@ func TestCanCreateContract(t *testing.T) {
 	}
 	params.TestOnlyClearRegisteredExtras()
 	hooks.RegisterForRules()
+	t.Cleanup(params.TestOnlyClearRegisteredExtras)
 
 	origin := common.Address{'o', 'r', 'i', 'g', 'i', 'n'}
 	caller := common.Address{'c', 'a', 'l', 'l', 'e', 'r'}
@@ -132,12 +127,11 @@ func TestCanCreateContract(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			evm := newEVM(t)
+			stateDB, evm := ethtest.NewZeroEVM(t)
 			evm.TxContext.Origin = origin
 
 			if tt.setState {
-				sdb := evm.StateDB.(*state.StateDB)
-				sdb.SetState(common.Address{}, slot, value)
+				stateDB.SetState(common.Address{}, slot, value)
 			}
 
 			methods := []struct {
@@ -149,7 +143,7 @@ func TestCanCreateContract(t *testing.T) {
 				{
 					name: "Create",
 					deploy: func() ([]byte, common.Address, uint64, error) {
-						return evm.Create(AccountRef(caller), code, 1e6, uint256.NewInt(0))
+						return evm.Create(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0))
 					},
 					wantErr:  tt.wantCreateErr,
 					wantAddr: create,
@@ -157,7 +151,7 @@ func TestCanCreateContract(t *testing.T) {
 				{
 					name: "Create2",
 					deploy: func() ([]byte, common.Address, uint64, error) {
-						return evm.Create2(AccountRef(caller), code, 1e6, uint256.NewInt(0), new(uint256.Int).SetBytes(salt[:]))
+						return evm.Create2(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0), new(uint256.Int).SetBytes(salt[:]))
 					},
 					wantErr:  tt.wantCreate2Err,
 					wantAddr: create2,
@@ -177,22 +171,4 @@ func TestCanCreateContract(t *testing.T) {
 			}
 		})
 	}
-}
-
-func newEVM(t *testing.T) *EVM {
-	t.Helper()
-
-	sdb, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	require.NoError(t, err, "state.New()")
-
-	return NewEVM(
-		BlockContext{
-			CanTransfer: func(_ StateDB, _ common.Address, _ *uint256.Int) bool { return true },
-			Transfer:    func(_ StateDB, _, _ common.Address, _ *uint256.Int) {},
-		},
-		TxContext{},
-		sdb,
-		&params.ChainConfig{},
-		Config{},
-	)
 }
