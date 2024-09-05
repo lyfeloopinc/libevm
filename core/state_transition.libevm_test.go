@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,13 +12,9 @@ import (
 )
 
 func TestCanExecuteTransaction(t *testing.T) {
-	rng := rand.New(rand.NewSource(42))
-	var (
-		account common.Address
-		slot    common.Hash
-	)
-	rng.Read(account[:])
-	rng.Read(slot[:])
+	rng := ethtest.NewRand(42)
+	account := rng.Address()
+	slot := rng.Hash()
 
 	makeErr := func(from common.Address, to *common.Address, val common.Hash) error {
 		return fmt.Errorf("From: %v To: %v State: %v", from, to, val)
@@ -31,20 +26,14 @@ func TestCanExecuteTransaction(t *testing.T) {
 	}
 	hooks.RegisterForRules(t)
 
-	var (
-		from, to common.Address
-		value    common.Hash
-	)
-	rng.Read(from[:])
-	rng.Read(to[:])
-	rng.Read(value[:])
+	value := rng.Hash()
 
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(account, slot, value)
 	msg := &Message{
-		From: from,
-		To:   &to,
+		From: rng.Address(),
+		To:   rng.AddressPtr(),
 	}
 	_, err := ApplyMessage(evm, msg, new(GasPool).AddGas(30e6))
-	require.EqualError(t, err, makeErr(from, &to, value).Error())
+	require.EqualError(t, err, makeErr(msg.From, msg.To, value).Error())
 }
