@@ -78,7 +78,7 @@ func TestPrecompileOverride(t *testing.T) {
 }
 
 func TestNewStatefulPrecompile(t *testing.T) {
-	rng := ethtest.NewRand(314159)
+	rng := ethtest.NewPseudoRand(314159)
 	precompile := rng.Address()
 	slot := rng.Hash()
 
@@ -121,15 +121,15 @@ func TestNewStatefulPrecompile(t *testing.T) {
 }
 
 func TestCanCreateContract(t *testing.T) {
-	rng := ethtest.NewRand(142857)
+	rng := ethtest.NewPseudoRand(142857)
 	account := rng.Address()
 	slot := rng.Hash()
 
-	makeErr := func(cc *libevm.ContractCreation, stateVal common.Hash) error {
-		return fmt.Errorf("Origin: %v Caller: %v Contract: %v State: %v", cc.Origin, cc.Caller, cc.Contract, stateVal)
+	makeErr := func(cc *libevm.AddressContext, stateVal common.Hash) error {
+		return fmt.Errorf("Origin: %v Caller: %v Contract: %v State: %v", cc.Origin, cc.Caller, cc.Self, stateVal)
 	}
 	hooks := &hookstest.Stub{
-		CanCreateContractFn: func(cc *libevm.ContractCreation, s libevm.StateReader) error {
+		CanCreateContractFn: func(cc *libevm.AddressContext, s libevm.StateReader) error {
 			return makeErr(cc, s.GetState(account, slot))
 		},
 	}
@@ -154,14 +154,14 @@ func TestCanCreateContract(t *testing.T) {
 			create: func(evm *vm.EVM) ([]byte, common.Address, uint64, error) {
 				return evm.Create(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0))
 			},
-			wantErr: makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create}, value),
+			wantErr: makeErr(&libevm.AddressContext{Origin: origin, Caller: caller, Self: create}, value),
 		},
 		{
 			name: "Create2",
 			create: func(evm *vm.EVM) ([]byte, common.Address, uint64, error) {
 				return evm.Create2(vm.AccountRef(caller), code, 1e6, uint256.NewInt(0), new(uint256.Int).SetBytes(salt[:]))
 			},
-			wantErr: makeErr(&libevm.ContractCreation{Origin: origin, Caller: caller, Contract: create2}, value),
+			wantErr: makeErr(&libevm.AddressContext{Origin: origin, Caller: caller, Self: create2}, value),
 		},
 	}
 

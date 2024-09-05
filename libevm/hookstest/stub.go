@@ -1,3 +1,4 @@
+// Package hookstest provides test doubles for testing subsets of libevm hooks.
 package hookstest
 
 import (
@@ -10,13 +11,17 @@ import (
 )
 
 // A Stub is a test double for [params.ChainConfigHooks] and
-// [params.RulesHooks].
+// [params.RulesHooks]. Each of the fields, if non-nil, back their respective
+// hook methods, which otherwise fall back to the default behaviour.
 type Stub struct {
 	PrecompileOverrides     map[common.Address]libevm.PrecompiledContract
 	CanExecuteTransactionFn func(common.Address, *common.Address, libevm.StateReader) error
-	CanCreateContractFn     func(*libevm.ContractCreation, libevm.StateReader) error
+	CanCreateContractFn     func(*libevm.AddressContext, libevm.StateReader) error
 }
 
+// RegisterForRules clears any registered [params.Extras] and then registers s
+// as [params.RulesHooks], which are themselves cleared by the
+// [testing.TB.Cleanup] routine.
 func (s *Stub) RegisterForRules(tb testing.TB) {
 	params.TestOnlyClearRegisteredExtras()
 	params.RegisterExtras(params.Extras[params.NOOPHooks, Stub]{
@@ -42,7 +47,7 @@ func (s Stub) CanExecuteTransaction(from common.Address, to *common.Address, sr 
 	return nil
 }
 
-func (s Stub) CanCreateContract(cc *libevm.ContractCreation, sr libevm.StateReader) error {
+func (s Stub) CanCreateContract(cc *libevm.AddressContext, sr libevm.StateReader) error {
 	if f := s.CanCreateContractFn; f != nil {
 		return f(cc, sr)
 	}
