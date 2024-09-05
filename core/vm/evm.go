@@ -429,7 +429,7 @@ func (c *codeAndHash) Hash() common.Hash {
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *uint256.Int, address common.Address, typ OpCode) (ret []byte, createAddress common.Address, leftOverGas uint64, err error) {
 	cc := &libevm.AddressContext{Origin: evm.Origin, Caller: caller.Address(), Self: address}
-	if err := evm.chainRules.Hooks().CanCreateContract(cc, evm.StateDB); err != nil {
+	if err = evm.chainRules.Hooks().CanCreateContract(cc, evm.StateDB); err != nil {
 		return nil, common.Address{}, gas, err
 	}
 	// Depth check execution. Fail if we're trying to execute above the
@@ -476,7 +476,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		}
 	}
 
-	ret, err := evm.interpreter.Run(contract, nil, false)
+	ret, err = evm.interpreter.Run(contract, nil, false)
 
 	// Check whether the max code size has been exceeded, assign err if the case.
 	if err == nil && evm.chainRules.IsEIP158 && len(ret) > params.MaxCodeSize {

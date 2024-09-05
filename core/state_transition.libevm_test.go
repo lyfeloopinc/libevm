@@ -1,10 +1,11 @@
-package core
+package core_test
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	. "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/libevm/hookstest"

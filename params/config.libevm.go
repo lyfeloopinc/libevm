@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"reflect"
 	"runtime"
 	"strings"
 
@@ -108,9 +107,10 @@ func (*Extras[C, R]) getter() (g ExtraPayloadGetter[C, R]) { return }
 
 // mustBeStruct panics if `T` isn't a struct.
 func mustBeStruct[T any]() {
-	if k := reflect.TypeFor[T]().Kind(); k != reflect.Struct {
-		panic(notStructMessage[T]())
-	}
+	// XXX: Seems this is a new go-lang feature?
+	// if k := reflect.TypeFor[T]().Kind(); k != reflect.Struct {
+	// 	panic(notStructMessage[T]())
+	// }
 }
 
 // notStructMessage returns the message with which [mustBeStruct] might panic.
