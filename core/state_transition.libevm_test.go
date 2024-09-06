@@ -1,10 +1,11 @@
-package core
+package core_test
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/libevm/hookstest"
@@ -30,10 +31,10 @@ func TestCanExecuteTransaction(t *testing.T) {
 
 	state, evm := ethtest.NewZeroEVM(t)
 	state.SetState(account, slot, value)
-	msg := &Message{
+	msg := &core.Message{
 		From: rng.Address(),
 		To:   rng.AddressPtr(),
 	}
-	_, err := ApplyMessage(evm, msg, new(GasPool).AddGas(30e6))
+	_, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(30e6))
 	require.EqualError(t, err, makeErr(msg.From, msg.To, value).Error())
 }
