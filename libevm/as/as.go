@@ -6,10 +6,12 @@
 //
 //	list := as.GethAccessList(...) // list is a geth-native AccessList
 //	list := as.LibEVMAccessList(...) // list is a libevm AccessList mirror
+//
+// Unless stated otherwise, all conversions make deep copies of their inputs.
 package as
 
 import (
-	"unsafe"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/libevm"
@@ -17,27 +19,40 @@ import (
 
 // GethAccessList converts the libevm AccessList to its geth equivalent.
 func GethAccessList(l libevm.AccessList) types.AccessList {
-	return *convert[libevm.AccessList, types.AccessList](&l)
+	return convertSlice(l, GethAccessTuple)
 }
 
 // LibEVMAccessList converts the geth AccessList to its libevm equivalent.
 func LibEVMAccessList(l types.AccessList) libevm.AccessList {
-	return *convert[types.AccessList, libevm.AccessList](&l)
+	return convertSlice(l, LibEVMAccessTuple)
 }
+
+func convertSlice[SIn ~[]EIn, EIn any, EOut any](in SIn, conv func(EIn) EOut) []EOut {
+	out := make([]EOut, len(in))
+	for i, e := range in {
+		out[i] = conv(e)
+	}
+	return out
+}
+
+// NOTE
+// ****
+// Struct conversions deliberately do NOT use field keys i.f.f. the field types
+// are all distinct. This will make them break (by design) if the number of
+// fields changes.
 
 // GethAccessTuple converts the libevm AccessTuple to its geth equivalent.
 func GethAccessTuple(t libevm.AccessTuple) types.AccessTuple {
-	return *convert[libevm.AccessTuple, types.AccessTuple](&t)
+	return types.AccessTuple{
+		t.Address,
+		slices.Clone(t.StorageKeys),
+	}
 }
 
 // LibEVMAccessTuple converts the geth AccessTuple to its libevm equivalent.
 func LibEVMAccessTuple(t types.AccessTuple) libevm.AccessTuple {
-	return *convert[types.AccessTuple, libevm.AccessTuple](&t)
-}
-
-// convert uses [unsafe.Pointer] type conversion as allowed by Pattern (1) of
-// its documentation. Any converter using convert MUST have extensive tests in
-// place to prove identity of the two types.
-func convert[T any, U any](v *T) *U {
-	return (*U)(unsafe.Pointer(v))
+	return libevm.AccessTuple{
+		t.Address,
+		slices.Clone(t.StorageKeys),
+	}
 }
