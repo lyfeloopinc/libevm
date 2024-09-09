@@ -60,13 +60,10 @@ func FuzzAccessTupleIdentity(f *testing.F) {
 			StorageKeys: keys,
 		}
 
-		// Using pointer conversion via unsafe demonstrates equivalent memory
-		// layout.
 		testConversion(t, libevmVal, gethVal, as.GethAccessTuple)
 		testConversion(t, gethVal, libevmVal, as.LibEVMAccessTuple)
-
-		libList := libevm.AccessList{libevmVal}
-		gethList := types.AccessList{gethVal}
+		libList := libevm.AccessList{libevmVal, libevmVal}
+		gethList := types.AccessList{gethVal, gethVal}
 		testConversion(t, libList, gethList, as.GethAccessList)
 		testConversion(t, gethList, libList, as.LibEVMAccessList)
 	})
