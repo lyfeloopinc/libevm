@@ -15,7 +15,7 @@ import (
 // hook methods, which otherwise fall back to the default behaviour.
 type Stub struct {
 	PrecompileOverrides     map[common.Address]libevm.PrecompiledContract
-	CanExecuteTransactionFn func(common.Address, *common.Address, libevm.StateReader) error
+	CanExecuteTransactionFn func(common.Address, *common.Address, libevm.AccessList, libevm.StateReader) error
 	CanCreateContractFn     func(*libevm.AddressContext, libevm.StateReader) error
 }
 
@@ -40,9 +40,9 @@ func (s Stub) PrecompileOverride(a common.Address) (libevm.PrecompiledContract, 
 	return p, ok
 }
 
-func (s Stub) CanExecuteTransaction(from common.Address, to *common.Address, sr libevm.StateReader) error {
+func (s Stub) CanExecuteTransaction(from common.Address, to *common.Address, al libevm.AccessList, sr libevm.StateReader) error {
 	if f := s.CanExecuteTransactionFn; f != nil {
-		return f(from, to, sr)
+		return f(from, to, al, sr)
 	}
 	return nil
 }
