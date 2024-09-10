@@ -250,3 +250,48 @@ func (r *Rules) extraPayload() *pseudo.Type {
 	}
 	return r.extra
 }
+
+func (c *ChainConfig) extraDescription() string {
+	if registeredExtras == nil || c.extra == nil {
+		return ""
+	}
+
+	type Descriptioner interface {
+		Description() string
+	}
+	d, ok := c.extra.Interface().(Descriptioner)
+	if !ok {
+		return ""
+	}
+	return d.Description()
+}
+
+func (c *ChainConfig) extraCheckCompatible(newcfg *ChainConfig, headNumber *big.Int, headTimestamp uint64) *ConfigCompatError {
+	if registeredExtras == nil || c.extra == nil {
+		return nil
+	}
+
+	type CompatibleChecker interface {
+		CheckCompatible(*ChainConfig, *big.Int, uint64) *ConfigCompatError
+	}
+	cc, ok := c.extra.Interface().(CompatibleChecker)
+	if !ok {
+		return nil
+	}
+	return cc.CheckCompatible(newcfg, headNumber, headTimestamp)
+}
+
+func (c *ChainConfig) extraCheckConfigForkOrder() error {
+	if registeredExtras == nil || c.extra == nil {
+		return nil
+	}
+
+	type ForkOrderChecker interface {
+		CheckConfigForkOrder() error
+	}
+	cc, ok := c.extra.Interface().(ForkOrderChecker)
+	if !ok {
+		return nil
+	}
+	return cc.CheckConfigForkOrder()
+}

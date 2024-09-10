@@ -478,7 +478,7 @@ func (c *ChainConfig) Description() string {
 	if c.VerkleTime != nil {
 		banner += fmt.Sprintf(" - Verkle:                      @%-10v\n", ptrToString(c.VerkleTime))
 	}
-	return banner
+	return banner + c.extraDescription()
 }
 
 // IsHomestead returns whether num is either equal to the homestead block or greater.
@@ -671,7 +671,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 			lastFork = cur
 		}
 	}
-	return nil
+	return c.extraCheckConfigForkOrder()
 }
 
 func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, headTimestamp uint64) *ConfigCompatError {
@@ -742,7 +742,7 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp) {
 		return newTimestampCompatError("Verkle fork timestamp", c.VerkleTime, newcfg.VerkleTime)
 	}
-	return nil
+	return c.extraCheckCompatible(newcfg, headNumber, headTimestamp)
 }
 
 // BaseFeeChangeDenominator bounds the amount the base fee can change between blocks.
@@ -888,7 +888,7 @@ func newTimestampCompatError(what string, storedtime, newtime *uint64) *ConfigCo
 
 func (err *ConfigCompatError) Error() string {
 	if err.StoredBlock != nil {
-		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
+		return fmt.Sprintf("mismatching %s in database (have block %s, want block %s, rewindto block %d)", err.What, intPtrToString(err.StoredBlock), intPtrToString(err.NewBlock), err.RewindToBlock)
 	}
 	return fmt.Sprintf("mismatching %s in database (have timestamp %s, want timestamp %s, rewindto timestamp %d)", err.What, ptrToString(err.StoredTime), ptrToString(err.NewTime), err.RewindToTime)
 }
@@ -945,4 +945,11 @@ func ptrToString(val *uint64) string {
 		return "nil"
 	}
 	return fmt.Sprintf("%d", *val)
+}
+
+func intPtrToString(val *big.Int) string {
+	if val == nil {
+		return "nil"
+	}
+	return val.String()
 }
