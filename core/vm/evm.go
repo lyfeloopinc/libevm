@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/libevm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -41,6 +42,9 @@ type (
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
+	if p, override := evm.chainRules.Hooks().PrecompileOverride(addr); override {
+		return p, p != nil
+	}
 	p, ok := evm.precompiles[addr]
 	return p, ok
 }
@@ -208,7 +212,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
 
 	if isPrecompile {
-		ret, gas, err = RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
+		args := &evmCallArgs{evm, caller, addr, input, gas, value}
+		ret, gas, err = args.RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -277,7 +282,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		ret, gas, err = RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
+		args := &evmCallArgs{evm, caller, addr, input, gas, value}
+		ret, gas, err = args.RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -328,7 +334,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		ret, gas, err = RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
+		args := &evmCallArgs{evm, caller, addr, input, gas, nil}
+		ret, gas, err = args.RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -382,7 +389,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	evm.StateDB.AddBalance(addr, new(uint256.Int), tracing.BalanceChangeTouchAccount)
 
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		ret, gas, err = RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
+		args := &evmCallArgs{evm, caller, addr, input, gas, nil}
+		ret, gas, err = args.RunPrecompiledContract(p, input, gas, evm.Config.Tracer)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'
@@ -433,6 +441,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		defer func(startGas uint64) {
 			evm.captureEnd(evm.depth, startGas, leftOverGas, ret, err)
 		}(gas)
+	}
+	cc := &libevm.AddressContext{Origin: evm.Origin, Caller: caller.Address(), Self: address}
+	if err := evm.chainRules.Hooks().CanCreateContract(cc, evm.StateDB); err != nil {
+		return nil, common.Address{}, gas, err
 	}
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
