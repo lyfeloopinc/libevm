@@ -24,7 +24,12 @@ import (
 
 // LookupInstructionSet returns the instruction set for the fork configured by
 // the rules.
-func LookupInstructionSet(rules params.Rules) (JumpTable, error) {
+func LookupInstructionSet(rules params.Rules) (jt JumpTable, err error) {
+	defer func() {
+		if err == nil && rules.Hooks().OverrideJumpTable() {
+			jt = *libevmHooks.OverrideJumpTable(rules, &jt)
+		}
+	}()
 	switch {
 	case rules.IsVerkle:
 		return newCancunInstructionSet(), errors.New("verkle-fork not defined yet")

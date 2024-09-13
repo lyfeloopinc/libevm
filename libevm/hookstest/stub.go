@@ -28,6 +28,7 @@ type Stub struct {
 	PrecompileOverrides     map[common.Address]libevm.PrecompiledContract
 	CanExecuteTransactionFn func(common.Address, *common.Address, libevm.StateReader) error
 	CanCreateContractFn     func(*libevm.AddressContext, libevm.StateReader) error
+	OverrideJumpTableFlag   bool
 }
 
 // Register is a convenience wrapper for registering s as both the
@@ -68,6 +69,10 @@ func (s Stub) CanCreateContract(cc *libevm.AddressContext, sr libevm.StateReader
 		return f(cc, sr)
 	}
 	return nil
+}
+
+func (s Stub) OverrideJumpTable() bool {
+	return s.OverrideJumpTableFlag
 }
 
 var _ interface {
