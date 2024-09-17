@@ -2,6 +2,7 @@ package vm
 
 import "github.com/ethereum/go-ethereum/params"
 
+// NewOperation constructs a new operation for inclusion in a [JumpTable].
 func NewOperation(
 	execute func(pc *uint64, interpreter *EVMInterpreter, callContext *ScopeContext) ([]byte, error),
 	constantGas uint64,
@@ -18,12 +19,18 @@ func NewOperation(
 	}
 }
 
+// Hooks are arbitrary configuration functions to modify default VM behaviour.
 type Hooks interface {
+	// OverrideJumpTable will only be called if
+	// [params.RulesHooks.OverrideJumpTable] returns true. This allows for
+	// recursive calling into [LookupInstructionSet].
 	OverrideJumpTable(params.Rules, *JumpTable) *JumpTable
 }
 
 var libevmHooks Hooks
 
+// RegisterHooks registers the Hooks. It is expected to be called in an `init()`
+// function and MUST NOT be called more than once.
 func RegisterHooks(h Hooks) {
 	if libevmHooks != nil {
 		panic("already registered")
