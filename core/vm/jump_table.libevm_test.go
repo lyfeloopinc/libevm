@@ -2,6 +2,7 @@ package vm_test
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -15,9 +16,14 @@ import (
 
 type vmHooksStub struct {
 	replacement *vm.JumpTable
+	overridden  bool
 }
 
+var _ vm.Hooks = (*vmHooksStub)(nil)
+
+// OverrideJumpTable overrides all non-nil operations from s.replacement .
 func (s *vmHooksStub) OverrideJumpTable(_ params.Rules, jt *vm.JumpTable) *vm.JumpTable {
+	s.overridden = true
 	for op, instr := range s.replacement {
 		if instr != nil {
 			fmt.Println(op, instr)
@@ -28,22 +34,30 @@ func (s *vmHooksStub) OverrideJumpTable(_ params.Rules, jt *vm.JumpTable) *vm.Ju
 }
 
 func TestOverrideJumpTable(t *testing.T) {
+	override := new(bool)
 	hooks := &hookstest.Stub{
-		OverrideJumpTableFlag: true,
+		OverrideJumpTableFn: func() bool {
+			return *override
+		},
 	}
 	hooks.Register(t)
 
-	var called bool
-	const opcode = 1
+	const (
+		opcode          = 1
+		gasLimit uint64 = 1e6
+	)
+	rng := ethtest.NewPseudoRand(142857)
+	gasCost := 1 + rng.Uint64n(gasLimit)
+	executed := false
 
 	vmHooks := &vmHooksStub{
 		replacement: &vm.JumpTable{
 			opcode: vm.NewOperation(
 				func(pc *uint64, interpreter *vm.EVMInterpreter, callContext *vm.ScopeContext) ([]byte, error) {
-					called = true
+					executed = true
 					return nil, nil
 				},
-				10, nil,
+				gasCost, nil,
 				0, 0,
 				func(s *vm.Stack) (size uint64, overflow bool) {
 					return 0, false
@@ -53,14 +67,34 @@ func TestOverrideJumpTable(t *testing.T) {
 	}
 	vm.RegisterHooks(vmHooks)
 
-	state, evm := ethtest.NewZeroEVM(t)
+	t.Run("LookupInstructionSet", func(t *testing.T) {
+		_, evm := ethtest.NewZeroEVM(t)
+		rules := evm.ChainConfig().Rules(big.NewInt(0), false, 0)
 
-	rng := ethtest.NewPseudoRand(142857)
-	contract := rng.Address()
-	state.CreateAccount(contract)
-	state.SetCode(contract, []byte{opcode})
+		for _, b := range []bool{false, true} {
+			vmHooks.overridden = false
 
-	_, _, err := evm.Call(vm.AccountRef(rng.Address()), contract, []byte{}, 1e6, uint256.NewInt(0))
-	require.NoError(t, err)
-	assert.True(t, called)
+			*override = b
+			_, err := vm.LookupInstructionSet(rules)
+			require.NoError(t, err)
+			require.Equal(t, b, vmHooks.overridden, "vm.Hooks.OverrideJumpTable() called i.f.f. params.RulesHooks.OverrideJumpTable() returns true")
+		}
+	})
+
+	t.Run("EVMInterpreter", func(t *testing.T) {
+		// We don't need to test the non-override case in EVMInterpreter because
+		// that uses code shared with LookupInstructionSet. Here we only care
+		// that the op gets executed as expected.
+		*override = true
+		state, evm := ethtest.NewZeroEVM(t)
+
+		contract := rng.Address()
+		state.CreateAccount(contract)
+		state.SetCode(contract, []byte{opcode})
+
+		_, gasRemaining, err := evm.Call(vm.AccountRef(rng.Address()), contract, []byte{}, gasLimit, uint256.NewInt(0))
+		require.NoError(t, err, "evm.Call([contract with overridden opcode])")
+		assert.True(t, executed, "executionFunc was called")
+		assert.Equal(t, gasLimit-gasCost, gasRemaining, "gas remaining")
+	})
 }

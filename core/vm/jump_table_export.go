@@ -26,8 +26,8 @@ import (
 // the rules.
 func LookupInstructionSet(rules params.Rules) (jt JumpTable, err error) {
 	defer func() {
-		if err == nil && rules.Hooks().OverrideJumpTable() {
-			jt = *libevmHooks.OverrideJumpTable(rules, &jt)
+		if err == nil { // NOTE `err ==` NOT !=
+			jt = *overrideJumpTable(rules, &jt)
 		}
 	}()
 	switch {

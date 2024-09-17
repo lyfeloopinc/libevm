@@ -2,6 +2,19 @@ package vm
 
 import "github.com/ethereum/go-ethereum/params"
 
+// overrideJumpTable returns `libevmHooks.OverrideJumpTable(r,jt)“ i.f.f. the
+// Rules' hooks indicate that it must, otherwise it echoes `jt` unchanged.
+func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
+	if !r.Hooks().OverrideJumpTable() {
+		return jt
+	}
+	// We don't check that libevmHooks is non-nil because the user has clearly
+	// signified that they want an override. A nil-pointer dereference will
+	// occur in tests whereas graceful degradation would frustrate the user with
+	// a hard-to-find bug.
+	return libevmHooks.OverrideJumpTable(r, jt)
+}
+
 // NewOperation constructs a new operation for inclusion in a [JumpTable].
 func NewOperation(
 	execute func(pc *uint64, interpreter *EVMInterpreter, callContext *ScopeContext) ([]byte, error),
