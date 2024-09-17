@@ -79,6 +79,8 @@ type BlockContext struct {
 	BaseFee     *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
 	BlobBaseFee *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random      *common.Hash   // Provides information for PREVRANDAO
+
+	Header *types.Header // libevm addition; not guaranteed to be set
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -228,7 +230,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 
 	if isPrecompile {
-		args := &evmCallArgs{evm, caller, addr, input, gas, value}
+		args := &evmCallArgs{evm, caller, addr, input, gas, value, inheritReadOnly}
 		ret, gas, err = args.RunPrecompiledContract(p, input, gas)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -292,7 +294,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		args := &evmCallArgs{evm, caller, addr, input, gas, value}
+		args := &evmCallArgs{evm, caller, addr, input, gas, value, inheritReadOnly}
 		ret, gas, err = args.RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -338,7 +340,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		args := &evmCallArgs{evm, caller, addr, input, gas, nil}
+		args := &evmCallArgs{evm, caller, addr, input, gas, nil, inheritReadOnly}
 		ret, gas, err = args.RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -388,7 +390,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	}
 
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
-		args := &evmCallArgs{evm, caller, addr, input, gas, nil}
+		args := &evmCallArgs{evm, caller, addr, input, gas, nil, forceReadOnly}
 		ret, gas, err = args.RunPrecompiledContract(p, input, gas)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
@@ -428,10 +430,6 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *uint256.Int, address common.Address, typ OpCode) ([]byte, common.Address, uint64, error) {
-	cc := &libevm.AddressContext{Origin: evm.Origin, Caller: caller.Address(), Self: address}
-	if err := evm.chainRules.Hooks().CanCreateContract(cc, evm.StateDB); err != nil {
-		return nil, common.Address{}, gas, err
-	}
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
@@ -455,6 +453,19 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != types.EmptyCodeHash) {
 		return nil, common.Address{}, 0, ErrContractAddressCollision
 	}
+
+	//libevm:start
+	//
+	// This check MUST be placed after the caller's nonce is incremented but
+	// before all other state-modifying behaviour, even if changes may be
+	// reverted to the snapshot.
+	addrs := &libevm.AddressContext{Origin: evm.Origin, Caller: caller.Address(), Self: address}
+	gas, err := evm.chainRules.Hooks().CanCreateContract(addrs, gas, evm.StateDB)
+	if err != nil {
+		return nil, common.Address{}, gas, err
+	}
+	//libevm:end
+
 	// Create a new account on the state
 	snapshot := evm.StateDB.Snapshot()
 	evm.StateDB.CreateAccount(address)
