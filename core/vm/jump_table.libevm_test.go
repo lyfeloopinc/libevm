@@ -54,12 +54,12 @@ func TestOverrideJumpTable(t *testing.T) {
 
 	vmHooks := &vmHooksStub{
 		replacement: &vm.JumpTable{
-			opcode: vm.OperationBuilderConstantGas{
+			opcode: vm.OperationBuilder{
 				Execute: func(pc *uint64, interpreter *vm.EVMInterpreter, callContext *vm.ScopeContext) ([]byte, error) {
 					executed = true
 					return nil, nil
 				},
-				Gas: gasCost,
+				ConstantGas: gasCost,
 				MemorySize: func(s *vm.Stack) (size uint64, overflow bool) {
 					return 0, false
 				},
@@ -102,6 +102,6 @@ func TestOverrideJumpTable(t *testing.T) {
 func TestOperationFieldCount(t *testing.T) {
 	// The libevm OperationBuilder assumes that the 6 struct fields are the only
 	// ones.
-	op := vm.OperationBuilderConstantGas{}.Build()
+	op := vm.OperationBuilder{}.Build()
 	require.Equalf(t, 6, reflect.TypeOf(*op).NumField(), "number of fields in %T struct", *op)
 }

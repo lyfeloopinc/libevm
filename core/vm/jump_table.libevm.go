@@ -16,39 +16,24 @@ func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
 }
 
 // An OperationBuilder is a factory for a new operations to include in a
-// [JumpTable]. All of its fields are required.
-type OperationBuilder[G interface {
-	uint64 | func(_ *EVM, _ *Contract, _ *Stack, _ *Memory, requestedMemorySize uint64) (uint64, error)
-}] struct {
+// [JumpTable].
+type OperationBuilder struct {
 	Execute            func(pc *uint64, interpreter *EVMInterpreter, callContext *ScopeContext) ([]byte, error)
-	Gas                G
+	ConstantGas        uint64
+	DynamicGas         func(_ *EVM, _ *Contract, _ *Stack, _ *Memory, requestedMemorySize uint64) (uint64, error)
 	MinStack, MaxStack int
 	MemorySize         func(s *Stack) (size uint64, overflow bool)
 }
 
-type (
-	// OperationBuilderConstantGas is the constant-gas version of an
-	// OperationBuilder.
-	OperationBuilderConstantGas = OperationBuilder[uint64]
-	// OperationBuilderDynamicGas is the dynamic-gas version of an
-	// OperationBuilder.
-	OperationBuilderDynamicGas = OperationBuilder[func(_ *EVM, _ *Contract, _ *Stack, _ *Memory, requestedMemorySize uint64) (uint64, error)]
-)
-
 // Build constructs the operation.
-func (b OperationBuilder[G]) Build() *operation {
+func (b OperationBuilder) Build() *operation {
 	o := &operation{
-		execute:    b.Execute,
-		minStack:   b.MinStack,
-		maxStack:   b.MaxStack,
-		memorySize: b.MemorySize,
-	}
-
-	switch g := any(b.Gas).(type) {
-	case uint64:
-		o.constantGas = g
-	case gasFunc:
-		o.dynamicGas = g
+		execute:     b.Execute,
+		constantGas: b.ConstantGas,
+		dynamicGas:  b.DynamicGas,
+		minStack:    b.MinStack,
+		maxStack:    b.MaxStack,
+		memorySize:  b.MemorySize,
 	}
 	return o
 }
