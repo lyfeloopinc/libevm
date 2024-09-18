@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/libevm/hookstest"
@@ -35,6 +36,16 @@ func (s *vmHooksStub) OverrideJumpTable(_ params.Rules, jt *vm.JumpTable) *vm.Ju
 	return jt
 }
 
+// An opRecorder is an instruction that records its inputs.
+type opRecorder struct {
+	stateVal common.Hash
+}
+
+func (op *opRecorder) execute(env *vm.OperationEnvironment, pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
+	op.stateVal = env.StateDB.GetState(scope.Contract.Address(), common.Hash{})
+	return nil, nil
+}
+
 func TestOverrideJumpTable(t *testing.T) {
 	override := new(bool)
 	hooks := &hookstest.Stub{
@@ -50,15 +61,12 @@ func TestOverrideJumpTable(t *testing.T) {
 	)
 	rng := ethtest.NewPseudoRand(142857)
 	gasCost := 1 + rng.Uint64n(gasLimit)
-	executed := false
+	spy := &opRecorder{}
 
 	vmHooks := &vmHooksStub{
 		replacement: &vm.JumpTable{
 			opcode: vm.OperationBuilder{
-				Execute: func(pc *uint64, interpreter *vm.EVMInterpreter, callContext *vm.ScopeContext) ([]byte, error) {
-					executed = true
-					return nil, nil
-				},
+				Execute:     spy.execute,
 				ConstantGas: gasCost,
 				MemorySize: func(s *vm.Stack) (size uint64, overflow bool) {
 					return 0, false
@@ -91,11 +99,13 @@ func TestOverrideJumpTable(t *testing.T) {
 		contract := rng.Address()
 		state.CreateAccount(contract)
 		state.SetCode(contract, []byte{opcode})
+		value := rng.Hash()
+		state.SetState(contract, common.Hash{}, value)
 
 		_, gasRemaining, err := evm.Call(vm.AccountRef(rng.Address()), contract, []byte{}, gasLimit, uint256.NewInt(0))
 		require.NoError(t, err, "evm.Call([contract with overridden opcode])")
-		assert.True(t, executed, "executionFunc was called")
 		assert.Equal(t, gasLimit-gasCost, gasRemaining, "gas remaining")
+		assert.Equal(t, spy.stateVal, value, "StateDB propagated")
 	})
 }
 
