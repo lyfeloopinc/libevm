@@ -117,7 +117,7 @@ func TestNewStatefulPrecompile(t *testing.T) {
 	const gasLimit = 1e6
 	gasCost := rng.Uint64n(gasLimit)
 
-	run := func(env vm.PrecompileEnvironment, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
+	run := func(env vm.Environment, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
 		if got, want := env.StateDB() != nil, !env.ReadOnly(); got != want {
 			return nil, 0, fmt.Errorf("PrecompileEnvironment().StateDB() must be non-nil i.f.f. not read-only; got non-nil? %t; want %t", got, want)
 		}
@@ -261,7 +261,7 @@ func TestInheritReadOnly(t *testing.T) {
 	hooks := &hookstest.Stub{
 		PrecompileOverrides: map[common.Address]libevm.PrecompiledContract{
 			precompile: vm.NewStatefulPrecompile(
-				func(env vm.PrecompileEnvironment, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
+				func(env vm.Environment, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
 					if env.ReadOnly() {
 						return []byte{ifReadOnly}, suppliedGas, nil
 					}

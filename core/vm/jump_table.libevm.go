@@ -1,6 +1,8 @@
 package vm
 
-import "github.com/ethereum/go-ethereum/libevm"
+import (
+	"github.com/ethereum/go-ethereum/libevm"
+)
 
 // An OperationBuilder is a factory for a new operations to include in a
 // [JumpTable].
@@ -26,28 +28,20 @@ func (b OperationBuilder) Build() *operation {
 }
 
 // An OperationFunc is the execution function of a custom instruction.
-type OperationFunc func(_ *OperationEnvironment, pc *uint64, _ *EVMInterpreter, _ *ScopeContext) ([]byte, error)
-
-// An OperationEnvironment provides information about the context in which a
-// custom instruction is being executed.
-type OperationEnvironment struct {
-	ReadOnly bool
-	// StateDB will be non-nil i.f.f !ReadOnly.
-	StateDB StateDB
-	// ReadOnlyState will always be non-nil.
-	ReadOnlyState libevm.StateReader
-}
+type OperationFunc func(_ Environment, pc *uint64, _ *EVMInterpreter, _ *ScopeContext) ([]byte, error)
 
 // internal converts an exported [OperationFunc] into an un-exported
 // [executionFunc] as required to build an [operation].
 func (fn OperationFunc) internal() executionFunc {
 	return func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-		env := &OperationEnvironment{
-			ReadOnly:      interpreter.readOnly,
-			ReadOnlyState: interpreter.evm.StateDB,
-		}
-		if !env.ReadOnly {
-			env.StateDB = interpreter.evm.StateDB
+		env := &environment{
+			evm:      interpreter.evm,
+			readonly: func() bool { return interpreter.readOnly },
+			addrs: libevm.AddressContext{
+				Origin: interpreter.evm.Origin,
+				Caller: scope.Contract.CallerAddress,
+				Self:   scope.Contract.Address(),
+			},
 		}
 		return fn(env, pc, interpreter, scope)
 	}

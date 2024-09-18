@@ -2,14 +2,11 @@ package vm
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/libevm"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // evmCallArgs mirrors the parameters of the [EVM] methods Call(), CallCode(),
@@ -54,7 +51,7 @@ const (
 // regular types.
 func (args *evmCallArgs) run(p PrecompiledContract, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error) {
 	if p, ok := p.(statefulPrecompile); ok {
-		return p(args, input, suppliedGas)
+		return p(args.env(), input, suppliedGas)
 	}
 	// Gas consumption for regular precompiles was already handled by the native
 	// RunPrecompiledContract(), which called this method.
@@ -64,7 +61,7 @@ func (args *evmCallArgs) run(p PrecompiledContract, input []byte, suppliedGas ui
 
 // PrecompiledStatefulContract is the stateful equivalent of a
 // [PrecompiledContract].
-type PrecompiledStatefulContract func(env PrecompileEnvironment, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error)
+type PrecompiledStatefulContract func(env Environment, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error)
 
 // NewStatefulPrecompile constructs a new PrecompiledContract that can be used
 // via an [EVM] instance but MUST NOT be called directly; a direct call to Run()
@@ -91,41 +88,19 @@ func (p statefulPrecompile) Run([]byte) ([]byte, error) {
 	panic(fmt.Sprintf("BUG: call to %T.Run(); MUST call %T itself", p, p))
 }
 
-// A PrecompileEnvironment provides information about the context in which a
-// precompiled contract is being run.
-type PrecompileEnvironment interface {
-	ChainConfig() *params.ChainConfig
-	Rules() params.Rules
-	ReadOnly() bool
-	// StateDB will be non-nil i.f.f !ReadOnly().
-	StateDB() StateDB
-	// ReadOnlyState will always be non-nil.
-	ReadOnlyState() libevm.StateReader
-	Addresses() *libevm.AddressContext
-
-	BlockHeader() (types.Header, error)
-	BlockNumber() *big.Int
-	BlockTime() uint64
+func (args *evmCallArgs) env() *environment {
+	return &environment{
+		evm:      args.evm,
+		readonly: args.readOnly,
+		addrs: libevm.AddressContext{
+			Origin: args.evm.Origin,
+			Caller: args.caller.Address(),
+			Self:   args.addr,
+		},
+	}
 }
 
-//
-// ****** SECURITY ******
-//
-// If you are updating PrecompileEnvironment to provide the ability to call back
-// into another contract, you MUST revisit the evmCallArgs.forceReadOnly flag.
-//
-// It is possible that forceReadOnly is true but evm.interpreter.readOnly is
-// false. This is safe for now, but may not be if recursive calling *from* a
-// precompile is enabled.
-//
-// ****** SECURITY ******
-
-var _ PrecompileEnvironment = (*evmCallArgs)(nil)
-
-func (args *evmCallArgs) ChainConfig() *params.ChainConfig { return args.evm.chainConfig }
-func (args *evmCallArgs) Rules() params.Rules              { return args.evm.chainRules }
-
-func (args *evmCallArgs) ReadOnly() bool {
+func (args *evmCallArgs) readOnly() bool {
 	if args.readWrite == inheritReadOnly {
 		if args.evm.interpreter.readOnly { //nolint:gosimple // Clearer code coverage for difficult-to-test branch
 			return true
@@ -137,46 +112,6 @@ func (args *evmCallArgs) ReadOnly() bool {
 	// safest failure mode.
 	return true
 }
-
-func (args *evmCallArgs) StateDB() StateDB {
-	if args.ReadOnly() {
-		return nil
-	}
-	return args.evm.StateDB
-}
-
-func (args *evmCallArgs) ReadOnlyState() libevm.StateReader {
-	// Even though we're actually returning a full state database, the user
-	// would have to actively circumvent the returned interface to use it. At
-	// that point they're off-piste and it's not our problem.
-	return args.evm.StateDB
-}
-
-func (args *evmCallArgs) Addresses() *libevm.AddressContext {
-	return &libevm.AddressContext{
-		Origin: args.evm.TxContext.Origin,
-		Caller: args.caller.Address(),
-		Self:   args.addr,
-	}
-}
-
-func (args *evmCallArgs) BlockHeader() (types.Header, error) {
-	hdr := args.evm.Context.Header
-	if hdr == nil {
-		// Although [core.NewEVMBlockContext] sets the field and is in the
-		// typical hot path (e.g. miner), there are other ways to create a
-		// [vm.BlockContext] (e.g. directly in tests) that may result in no
-		// available header.
-		return types.Header{}, fmt.Errorf("nil %T in current %T", hdr, args.evm.Context)
-	}
-	return *hdr, nil
-}
-
-func (args *evmCallArgs) BlockNumber() *big.Int {
-	return new(big.Int).Set(args.evm.Context.BlockNumber)
-}
-
-func (args *evmCallArgs) BlockTime() uint64 { return args.evm.Context.Time }
 
 var (
 	// These lock in the assumptions made when implementing [evmCallArgs]. If

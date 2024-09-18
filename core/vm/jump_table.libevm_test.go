@@ -41,8 +41,8 @@ type opRecorder struct {
 	stateVal common.Hash
 }
 
-func (op *opRecorder) execute(env *vm.OperationEnvironment, pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
-	op.stateVal = env.StateDB.GetState(scope.Contract.Address(), common.Hash{})
+func (op *opRecorder) execute(env vm.Environment, pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
+	op.stateVal = env.StateDB().GetState(scope.Contract.Address(), common.Hash{})
 	return nil, nil
 }
 
