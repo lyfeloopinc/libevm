@@ -29,8 +29,8 @@ type Environment interface {
 //
 // ****** SECURITY ******
 //
-// If you are updating PrecompileEnvironment to provide the ability to call back
-// into another contract, you MUST revisit the evmCallArgs.forceReadOnly flag.
+// If you are updating Environment to provide the ability to call back into
+// another contract, you MUST revisit the evmCallArgs.forceReadOnly flag.
 //
 // It is possible that forceReadOnly is true but evm.interpreter.readOnly is
 // false. This is safe for now, but may not be if recursive calling *from* a
