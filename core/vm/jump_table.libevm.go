@@ -1,5 +1,7 @@
 package vm
 
+import "github.com/ethereum/go-ethereum/libevm"
+
 // An OperationBuilder is a factory for a new operations to include in a
 // [JumpTable].
 type OperationBuilder struct {
@@ -29,17 +31,24 @@ type OperationFunc func(_ *OperationEnvironment, pc *uint64, _ *EVMInterpreter, 
 // An OperationEnvironment provides information about the context in which a
 // custom instruction is being executed.
 type OperationEnvironment struct {
+	ReadOnly bool
+	// StateDB will be non-nil i.f.f !ReadOnly.
 	StateDB StateDB
+	// ReadOnlyState will always be non-nil.
+	ReadOnlyState libevm.StateReader
 }
 
 // internal converts an exported [OperationFunc] into an un-exported
 // [executionFunc] as required to build an [operation].
 func (fn OperationFunc) internal() executionFunc {
 	return func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-		return fn(
-			&OperationEnvironment{
-				StateDB: interpreter.evm.StateDB,
-			}, pc, interpreter, scope,
-		)
+		env := &OperationEnvironment{
+			ReadOnly:      interpreter.readOnly,
+			ReadOnlyState: interpreter.evm.StateDB,
+		}
+		if !env.ReadOnly {
+			env.StateDB = interpreter.evm.StateDB
+		}
+		return fn(env, pc, interpreter, scope)
 	}
 }
