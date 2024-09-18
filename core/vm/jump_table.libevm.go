@@ -36,7 +36,7 @@ func (fn OperationFunc) internal() executionFunc {
 	return func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 		env := &environment{
 			evm:      interpreter.evm,
-			readonly: func() bool { return interpreter.readOnly },
+			readOnly: interpreter.readOnly,
 			addrs: libevm.AddressContext{
 				Origin: interpreter.evm.Origin,
 				Caller: scope.Contract.CallerAddress,

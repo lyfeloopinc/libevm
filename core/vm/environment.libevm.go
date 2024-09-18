@@ -42,13 +42,13 @@ var _ Environment = (*environment)(nil)
 
 type environment struct {
 	evm      *EVM
-	readonly func() bool
+	readOnly bool
 	addrs    libevm.AddressContext
 }
 
 func (e *environment) ChainConfig() *params.ChainConfig  { return e.evm.chainConfig }
 func (e *environment) Rules() params.Rules               { return e.evm.chainRules }
-func (e *environment) ReadOnly() bool                    { return e.readonly() }
+func (e *environment) ReadOnly() bool                    { return e.readOnly }
 func (e *environment) ReadOnlyState() libevm.StateReader { return e.evm.StateDB }
 func (e *environment) Addresses() *libevm.AddressContext { return &e.addrs }
 func (e *environment) BlockNumber() *big.Int             { return new(big.Int).Set(e.evm.Context.BlockNumber) }

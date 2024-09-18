@@ -91,7 +91,7 @@ func (p statefulPrecompile) Run([]byte) ([]byte, error) {
 func (args *evmCallArgs) env() *environment {
 	return &environment{
 		evm:      args.evm,
-		readonly: args.readOnly,
+		readOnly: args.readOnly(),
 		addrs: libevm.AddressContext{
 			Origin: args.evm.Origin,
 			Caller: args.caller.Address(),
