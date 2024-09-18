@@ -3,6 +3,7 @@ package vm_test
 import (
 	"fmt"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/holiman/uint256"
@@ -53,24 +54,22 @@ func TestOverrideJumpTable(t *testing.T) {
 
 	vmHooks := &vmHooksStub{
 		replacement: &vm.JumpTable{
-			opcode: vm.NewOperation(
-				func(pc *uint64, interpreter *vm.EVMInterpreter, callContext *vm.ScopeContext) ([]byte, error) {
+			opcode: vm.OperationBuilderConstantGas{
+				Execute: func(pc *uint64, interpreter *vm.EVMInterpreter, callContext *vm.ScopeContext) ([]byte, error) {
 					executed = true
 					return nil, nil
 				},
-				gasCost, nil,
-				0, 0,
-				func(s *vm.Stack) (size uint64, overflow bool) {
+				Gas: gasCost,
+				MemorySize: func(s *vm.Stack) (size uint64, overflow bool) {
 					return 0, false
 				},
-			),
+			}.Build(),
 		},
 	}
 	vm.RegisterHooks(vmHooks)
 
 	t.Run("LookupInstructionSet", func(t *testing.T) {
-		_, evm := ethtest.NewZeroEVM(t)
-		rules := evm.ChainConfig().Rules(big.NewInt(0), false, 0)
+		rules := new(params.ChainConfig).Rules(big.NewInt(0), false, 0)
 
 		for _, b := range []bool{false, true} {
 			vmHooks.overridden = false
@@ -98,4 +97,11 @@ func TestOverrideJumpTable(t *testing.T) {
 		assert.True(t, executed, "executionFunc was called")
 		assert.Equal(t, gasLimit-gasCost, gasRemaining, "gas remaining")
 	})
+}
+
+func TestOperationFieldCount(t *testing.T) {
+	// The libevm OperationBuilder assumes that the 6 struct fields are the only
+	// ones.
+	op := vm.OperationBuilderConstantGas{}.Build()
+	require.Equalf(t, 6, reflect.TypeOf(*op).NumField(), "number of fields in %T struct", *op)
 }

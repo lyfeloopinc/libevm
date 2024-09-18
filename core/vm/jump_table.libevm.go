@@ -15,21 +15,42 @@ func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
 	return libevmHooks.OverrideJumpTable(r, jt)
 }
 
-// NewOperation constructs a new operation for inclusion in a [JumpTable].
-func NewOperation(
-	execute func(pc *uint64, interpreter *EVMInterpreter, callContext *ScopeContext) ([]byte, error),
-	constantGas uint64,
-	dynamicGas func(e *EVM, c *Contract, s *Stack, m *Memory, u uint64) (uint64, error),
-	minStack, maxStack int,
-	memorySize func(s *Stack) (size uint64, overflow bool),
-) *operation {
-	return &operation{
-		execute,
-		constantGas,
-		dynamicGas,
-		minStack, maxStack,
-		memorySize,
+// An OperationBuilder is a factory for a new operations to include in a
+// [JumpTable]. All of its fields are required.
+type OperationBuilder[G interface {
+	uint64 | func(_ *EVM, _ *Contract, _ *Stack, _ *Memory, requestedMemorySize uint64) (uint64, error)
+}] struct {
+	Execute            func(pc *uint64, interpreter *EVMInterpreter, callContext *ScopeContext) ([]byte, error)
+	Gas                G
+	MinStack, MaxStack int
+	MemorySize         func(s *Stack) (size uint64, overflow bool)
+}
+
+type (
+	// OperationBuilderConstantGas is the constant-gas version of an
+	// OperationBuilder.
+	OperationBuilderConstantGas = OperationBuilder[uint64]
+	// OperationBuilderDynamicGas is the dynamic-gas version of an
+	// OperationBuilder.
+	OperationBuilderDynamicGas = OperationBuilder[func(_ *EVM, _ *Contract, _ *Stack, _ *Memory, requestedMemorySize uint64) (uint64, error)]
+)
+
+// Build constructs the operation.
+func (b OperationBuilder[G]) Build() *operation {
+	o := &operation{
+		execute:    b.Execute,
+		minStack:   b.MinStack,
+		maxStack:   b.MaxStack,
+		memorySize: b.MemorySize,
 	}
+
+	switch g := any(b.Gas).(type) {
+	case uint64:
+		o.constantGas = g
+	case gasFunc:
+		o.dynamicGas = g
+	}
+	return o
 }
 
 // Hooks are arbitrary configuration functions to modify default VM behaviour.
