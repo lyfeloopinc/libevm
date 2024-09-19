@@ -27,10 +27,6 @@ type RulesHooks interface {
 	// [PrecompiledContract] is non-nil. If it returns `false` then the default
 	// precompile behaviour is honoured.
 	PrecompileOverride(common.Address) (_ libevm.PrecompiledContract, override bool)
-	// OverrideJumpTable signals that [vm.Hooks.OverrideJumpTable] MUST be used.
-	// Toggling the behaviour via [Rules] allows for recursive calling into
-	// functions that would otherwise infinitely call the override hook.
-	OverrideJumpTable() bool
 }
 
 // RulesAllowlistHooks are a subset of [RulesHooks] that gate actions, signalled
@@ -87,10 +83,4 @@ func (NOOPHooks) CanCreateContract(_ *libevm.AddressContext, gas uint64, _ libev
 // precompile behaviour.
 func (NOOPHooks) PrecompileOverride(common.Address) (libevm.PrecompiledContract, bool) {
 	return nil, false
-}
-
-// OverrideJumpTable returns false, leaving all JumpTables unmodified even if
-// [vm.Hooks] have been registered.
-func (NOOPHooks) OverrideJumpTable() bool {
-	return false
 }

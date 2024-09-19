@@ -24,12 +24,8 @@ type Hooks interface {
 // overrideJumpTable returns `libevmHooks.OverrideJumpTable(r,jt)“ i.f.f. the
 // Rules' hooks indicate that it must, otherwise it echoes `jt` unchanged.
 func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
-	if !r.Hooks().OverrideJumpTable() {
+	if libevmHooks == nil {
 		return jt
 	}
-	// We don't check that libevmHooks is non-nil because the user has clearly
-	// signified that they want an override. A nil-pointer dereference will
-	// occur in tests whereas graceful degradation would frustrate the user with
-	// a hard-to-find bug.
 	return libevmHooks.OverrideJumpTable(r, jt)
 }
