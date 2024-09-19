@@ -15,14 +15,11 @@ var libevmHooks Hooks
 
 // Hooks are arbitrary configuration functions to modify default VM behaviour.
 type Hooks interface {
-	// OverrideJumpTable will only be called if
-	// [params.RulesHooks.OverrideJumpTable] returns true. This allows for
-	// recursive calling into [LookupInstructionSet].
 	OverrideJumpTable(params.Rules, *JumpTable) *JumpTable
 }
 
-// overrideJumpTable returns `libevmHooks.OverrideJumpTable(r,jt)“ i.f.f. the
-// Rules' hooks indicate that it must, otherwise it echoes `jt` unchanged.
+// overrideJumpTable returns `libevmHooks.OverrideJumpTable(r,jt)` i.f.f. Hooks
+// have been registered.
 func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
 	if libevmHooks == nil {
 		return jt
