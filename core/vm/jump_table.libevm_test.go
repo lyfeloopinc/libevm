@@ -34,6 +34,8 @@ func (s *vmHooksStub) OverrideJumpTable(_ params.Rules, jt *vm.JumpTable) *vm.Ju
 	return jt
 }
 
+func (*vmHooksStub) OverrideNewEVMArgs(a *vm.NewEVMArgs) *vm.NewEVMArgs { return a }
+
 // An opRecorder is an instruction that records its inputs.
 type opRecorder struct {
 	stateVal common.Hash

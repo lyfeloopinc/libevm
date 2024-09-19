@@ -15,14 +15,36 @@ var libevmHooks Hooks
 
 // Hooks are arbitrary configuration functions to modify default VM behaviour.
 type Hooks interface {
+	OverrideNewEVMArgs(*NewEVMArgs) *NewEVMArgs
 	OverrideJumpTable(params.Rules, *JumpTable) *JumpTable
 }
 
-// overrideJumpTable returns `libevmHooks.OverrideJumpTable(r,jt)` i.f.f. Hooks
-// have been registered.
+// NewEVMArgs are the arguments received by [NewEVM], available for override.
+type NewEVMArgs struct {
+	BlockContext BlockContext
+	TxContext    TxContext
+	StateDB      StateDB
+	ChainConfig  *params.ChainConfig
+	Config       Config
+}
+
 func overrideJumpTable(r params.Rules, jt *JumpTable) *JumpTable {
 	if libevmHooks == nil {
 		return jt
 	}
 	return libevmHooks.OverrideJumpTable(r, jt)
+}
+
+func overrideNewEVMArgs(
+	blockCtx BlockContext,
+	txCtx TxContext,
+	statedb StateDB,
+	chainConfig *params.ChainConfig,
+	config Config,
+) (BlockContext, TxContext, StateDB, *params.ChainConfig, Config) {
+	if libevmHooks == nil {
+		return blockCtx, txCtx, statedb, chainConfig, config
+	}
+	args := libevmHooks.OverrideNewEVMArgs(&NewEVMArgs{blockCtx, txCtx, statedb, chainConfig, config})
+	return args.BlockContext, args.TxContext, args.StateDB, args.ChainConfig, args.Config
 }
