@@ -1,3 +1,18 @@
+// Copyright 2024 the libevm authors.
+//
+// The libevm additions to go-ethereum are free software: you can redistribute
+// them and/or modify them under the terms of the GNU Lesser General Public License
+// as published by the Free Software Foundation, either version 3 of the License,
+// or (at your option) any later version.
+//
+// The libevm additions are distributed in the hope that they will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+// General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see
+// <http://www.gnu.org/licenses/>.
 package vm
 
 import (
@@ -9,16 +24,35 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-type chainIDOverrider struct {
-	chainID int64
+type evmArgOverrider struct {
+	newEVMchainID int64
+
+	resetTxCtx   TxContext
+	resetStateDB StateDB
 }
 
-func (o chainIDOverrider) OverrideNewEVMArgs(args *NewEVMArgs) *NewEVMArgs {
-	args.ChainConfig = &params.ChainConfig{ChainID: big.NewInt(o.chainID)}
+func (o evmArgOverrider) OverrideNewEVMArgs(args *NewEVMArgs) *NewEVMArgs {
+	args.ChainConfig = &params.ChainConfig{ChainID: big.NewInt(o.newEVMchainID)}
 	return args
 }
 
-func (chainIDOverrider) OverrideJumpTable(_ params.Rules, jt *JumpTable) *JumpTable { return jt }
+func (evmArgOverrider) OverrideJumpTable(_ params.Rules, jt *JumpTable) *JumpTable { return jt }
+
+func (o evmArgOverrider) OverrideEVMResetArgs(*EVMResetArgs) *EVMResetArgs {
+	return &EVMResetArgs{
+		TxContext: o.resetTxCtx,
+		StateDB:   o.resetStateDB,
+	}
+}
+
+func (o evmArgOverrider) register(t *testing.T) {
+	t.Helper()
+	libevmHooks = nil
+	RegisterHooks(o)
+	t.Cleanup(func() {
+		libevmHooks = nil
+	})
+}
 
 func TestOverrideNewEVMArgs(t *testing.T) {
 	// The overrideNewEVMArgs function accepts and returns all arguments to
@@ -27,10 +61,27 @@ func TestOverrideNewEVMArgs(t *testing.T) {
 	var _ func(BlockContext, TxContext, StateDB, *params.ChainConfig, Config) *EVM = NewEVM
 
 	const chainID = 13579
-	libevmHooks = nil
-	RegisterHooks(chainIDOverrider{chainID: chainID})
-	defer func() { libevmHooks = nil }()
+	hooks := evmArgOverrider{newEVMchainID: chainID}
+	hooks.register(t)
 
-	got := NewEVM(BlockContext{}, TxContext{}, nil, nil, Config{}).ChainConfig().ChainID
-	require.Equal(t, big.NewInt(chainID), got)
+	evm := NewEVM(BlockContext{}, TxContext{}, nil, nil, Config{})
+	got := evm.ChainConfig().ChainID
+	require.Equalf(t, big.NewInt(chainID), got, "%T.ChainConfig().ChainID set by NewEVM() hook", evm)
+}
+
+func TestOverrideEVMResetArgs(t *testing.T) {
+	// Equivalent to rationale for TestOverrideNewEVMArgs above.
+	var _ func(TxContext, StateDB) = (*EVM)(nil).Reset
+
+	const gasPrice = 1357924680
+	hooks := evmArgOverrider{
+		resetTxCtx: TxContext{
+			GasPrice: big.NewInt(gasPrice),
+		},
+	}
+	hooks.register(t)
+
+	evm := NewEVM(BlockContext{}, TxContext{}, nil, nil, Config{})
+	evm.Reset(TxContext{}, nil)
+	require.Equalf(t, big.NewInt(gasPrice), evm.GasPrice, "%T.GasPrice set by Reset() hook", evm)
 }
