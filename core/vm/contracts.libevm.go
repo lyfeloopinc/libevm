@@ -22,23 +22,24 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/libevm"
 )
 
 // evmCallArgs mirrors the parameters of the [EVM] methods Call(), CallCode(),
 // DelegateCall() and StaticCall(). Its fields are identical to those of the
-// parameters, prepended with the receiver name and appended with additional
-// values. As {Delegate,Static}Call don't accept a value, they MUST set the
-// respective field to nil.
+// parameters, prepended with the receiver name and call type. As
+// {Delegate,Static}Call don't accept a value, they MAY set the respective field
+// to nil as it will be ignored.
 //
 // Instantiation can be achieved by merely copying the parameter names, in
 // order, which is trivially achieved with AST manipulation:
 //
-//	func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) ... {
+//	func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) ... {
 //	    ...
-//	    args := &evmCallArgs{evm, caller, addr, input, gas, value, false}
+//	    args := &evmCallArgs{evm, staticCall, caller, addr, input, gas, nil /*value*/}
 type evmCallArgs struct {
-	evm *EVM
+	evm      *EVM
+	callType callType
+
 	// args:start
 	caller ContractRef
 	addr   common.Address
@@ -46,21 +47,15 @@ type evmCallArgs struct {
 	gas    uint64
 	value  *uint256.Int
 	// args:end
-
-	// evm.interpreter.readOnly is only set to true via a call to
-	// EVMInterpreter.Run() so, if a precompile is called directly with
-	// StaticCall(), then readOnly might not be set yet. StaticCall() MUST set
-	// this to forceReadOnly and all other methods MUST set it to
-	// inheritReadOnly; i.e. equivalent to the boolean they each pass to
-	// EVMInterpreter.Run().
-	readWrite rwInheritance
 }
 
-type rwInheritance uint8
+type callType uint8
 
 const (
-	inheritReadOnly rwInheritance = iota + 1
-	forceReadOnly
+	call callType = iota + 1
+	callCode
+	delegateCall
+	staticCall
 )
 
 // run runs the [PrecompiledContract], differentiating between stateful and
@@ -77,7 +72,7 @@ func (args *evmCallArgs) run(p PrecompiledContract, input []byte, suppliedGas ui
 
 // PrecompiledStatefulContract is the stateful equivalent of a
 // [PrecompiledContract].
-type PrecompiledStatefulContract func(env Environment, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error)
+type PrecompiledStatefulContract func(env PrecompileEnvironment, input []byte, suppliedGas uint64) (ret []byte, remainingGas uint64, err error)
 
 // NewStatefulPrecompile constructs a new PrecompiledContract that can be used
 // via an [EVM] instance but MUST NOT be called directly; a direct call to Run()
@@ -104,29 +99,65 @@ func (p statefulPrecompile) Run([]byte) ([]byte, error) {
 	panic(fmt.Sprintf("BUG: call to %T.Run(); MUST call %T itself", p, p))
 }
 
+// A PrecompileEnvironment provides (a) information about the context in which a
+// precompiled contract is being run; and (b) a means of calling other
+// contracts.
+type PrecompileEnvironment interface {
+	Environment
+
+	// Call is equivalent to [EVM.Call] except that the `caller` argument is
+	// removed and automatically determined according to the type of call that
+	// invoked the precompile.
+	Call(addr common.Address, input []byte, gas uint64, value *uint256.Int, _ ...CallOption) (ret []byte, gasRemaining uint64, _ error)
+}
+
 func (args *evmCallArgs) env() *environment {
+	var (
+		self  common.Address
+		value = args.value
+	)
+	switch args.callType {
+	case staticCall:
+		value = new(uint256.Int)
+		fallthrough
+	case call:
+		self = args.addr
+
+	case delegateCall:
+		value = nil
+		fallthrough
+	case callCode:
+		self = args.caller.Address()
+	}
+
+	// This is equivalent to the `contract` variables created by evm.*Call*()
+	// methods, for non precompiles, to pass to [EVMInterpreter.Run].
+	contract := NewContract(args.caller, AccountRef(self), value, args.gas)
+	if args.callType == delegateCall {
+		contract = contract.AsDelegate()
+	}
+
 	return &environment{
-		evm:      args.evm,
-		readOnly: args.readOnly(),
-		addrs: libevm.AddressContext{
-			Origin: args.evm.Origin,
-			Caller: args.caller.Address(),
-			Self:   args.addr,
-		},
+		evm:           args.evm,
+		self:          contract,
+		forceReadOnly: args.readOnly(),
 	}
 }
 
 func (args *evmCallArgs) readOnly() bool {
-	if args.readWrite == inheritReadOnly {
-		if args.evm.interpreter.readOnly { //nolint:gosimple // Clearer code coverage for difficult-to-test branch
-			return true
-		}
+	// A switch statement provides clearer code coverage for difficult-to-test
+	// cases.
+	switch {
+	case args.callType == staticCall:
+		// evm.interpreter.readOnly is only set to true via a call to
+		// EVMInterpreter.Run() so, if a precompile is called directly with
+		// StaticCall(), then readOnly might not be set yet.
+		return true
+	case args.evm.interpreter.readOnly:
+		return true
+	default:
 		return false
 	}
-	// Even though args.readWrite may be some value other than forceReadOnly,
-	// that would be an invalid use of the API so we default to read-only as the
-	// safest failure mode.
-	return true
 }
 
 var (

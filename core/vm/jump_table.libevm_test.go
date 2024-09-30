@@ -50,8 +50,11 @@ func (s *vmHooksStub) OverrideJumpTable(_ params.Rules, jt *vm.JumpTable) *vm.Ju
 	return jt
 }
 
-func (*vmHooksStub) OverrideNewEVMArgs(a *vm.NewEVMArgs) *vm.NewEVMArgs       { return a }
-func (*vmHooksStub) OverrideEVMResetArgs(a *vm.EVMResetArgs) *vm.EVMResetArgs { return a }
+func (*vmHooksStub) OverrideNewEVMArgs(a *vm.NewEVMArgs) *vm.NewEVMArgs { return a }
+
+func (*vmHooksStub) OverrideEVMResetArgs(r params.Rules, a *vm.EVMResetArgs) *vm.EVMResetArgs {
+	return a
+}
 
 // An opRecorder is an instruction that records its inputs.
 type opRecorder struct {

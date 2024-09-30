@@ -19,6 +19,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -27,25 +28,27 @@ import (
 type evmArgOverrider struct {
 	newEVMchainID int64
 
-	resetTxCtx   TxContext
-	resetStateDB StateDB
+	gotResetChainID  *big.Int
+	resetTxContextTo TxContext
+	resetStateDBTo   StateDB
 }
 
-func (o evmArgOverrider) OverrideNewEVMArgs(args *NewEVMArgs) *NewEVMArgs {
+func (o *evmArgOverrider) OverrideNewEVMArgs(args *NewEVMArgs) *NewEVMArgs {
 	args.ChainConfig = &params.ChainConfig{ChainID: big.NewInt(o.newEVMchainID)}
 	return args
 }
 
 func (evmArgOverrider) OverrideJumpTable(_ params.Rules, jt *JumpTable) *JumpTable { return jt }
 
-func (o evmArgOverrider) OverrideEVMResetArgs(*EVMResetArgs) *EVMResetArgs {
+func (o *evmArgOverrider) OverrideEVMResetArgs(r params.Rules, _ *EVMResetArgs) *EVMResetArgs {
+	o.gotResetChainID = r.ChainID
 	return &EVMResetArgs{
-		TxContext: o.resetTxCtx,
-		StateDB:   o.resetStateDB,
+		TxContext: o.resetTxContextTo,
+		StateDB:   o.resetStateDBTo,
 	}
 }
 
-func (o evmArgOverrider) register(t *testing.T) {
+func (o *evmArgOverrider) register(t *testing.T) {
 	t.Helper()
 	libevmHooks = nil
 	RegisterHooks(o)
@@ -73,9 +76,13 @@ func TestOverrideEVMResetArgs(t *testing.T) {
 	// Equivalent to rationale for TestOverrideNewEVMArgs above.
 	var _ func(TxContext, StateDB) = (*EVM)(nil).Reset
 
-	const gasPrice = 1357924680
-	hooks := evmArgOverrider{
-		resetTxCtx: TxContext{
+	const (
+		chainID  = 0xc0ffee
+		gasPrice = 1357924680
+	)
+	hooks := &evmArgOverrider{
+		newEVMchainID: chainID,
+		resetTxContextTo: TxContext{
 			GasPrice: big.NewInt(gasPrice),
 		},
 	}
@@ -83,5 +90,6 @@ func TestOverrideEVMResetArgs(t *testing.T) {
 
 	evm := NewEVM(BlockContext{}, TxContext{}, nil, nil, Config{})
 	evm.Reset(TxContext{}, nil)
-	require.Equalf(t, big.NewInt(gasPrice), evm.GasPrice, "%T.GasPrice set by Reset() hook", evm)
+	assert.Equalf(t, big.NewInt(chainID), hooks.gotResetChainID, "%T.ChainID passed to Reset() hook", params.Rules{})
+	assert.Equalf(t, big.NewInt(gasPrice), evm.GasPrice, "%T.GasPrice set by Reset() hook", evm)
 }

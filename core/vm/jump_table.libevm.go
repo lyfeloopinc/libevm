@@ -16,10 +16,6 @@
 
 package vm
 
-import (
-	"github.com/ethereum/go-ethereum/libevm"
-)
-
 // An OperationBuilder is a factory for a new operations to include in a
 // [JumpTable].
 type OperationBuilder struct {
@@ -51,13 +47,8 @@ type OperationFunc func(_ Environment, pc *uint64, _ *EVMInterpreter, _ *ScopeCo
 func (fn OperationFunc) internal() executionFunc {
 	return func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 		env := &environment{
-			evm:      interpreter.evm,
-			readOnly: interpreter.readOnly,
-			addrs: libevm.AddressContext{
-				Origin: interpreter.evm.Origin,
-				Caller: scope.Contract.CallerAddress,
-				Self:   scope.Contract.Address(),
-			},
+			evm:  interpreter.evm,
+			self: scope.Contract,
 		}
 		return fn(env, pc, interpreter, scope)
 	}
