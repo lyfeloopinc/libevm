@@ -41,6 +41,7 @@ linters:
     - usestdlibvars
     - unused
     - whitespace
+    - revive # only certain checks enabled
 
 linters-settings:
   gci:
