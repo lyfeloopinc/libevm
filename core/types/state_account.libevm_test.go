@@ -17,6 +17,7 @@
 package types
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -222,4 +223,31 @@ func repeatAsHash(x byte) (h common.Hash) {
 		h[i] = x
 	}
 	return h
+}
+
+func ExampleStateAccountExtra_Format() {
+	fmt.Println("EmptyRootHash ==", EmptyRootHash)
+	fmt.Println("EmptyCodeHash ==", EmptyCodeHash)
+
+	print := func(verb, desc string, acct *StateAccount) {
+		desc = fmt.Sprintf("%q %s:", verb, desc)
+		fmt.Printf("%-35s"+verb+"\n", desc, acct)
+	}
+
+	acct := NewEmptyStateAccount()
+	print("%#x", "without registered extras", acct)
+
+	payloads := RegisterExtras[uint]()
+	print("%#x", "with unset uint payload", acct)
+	payloads.SetOnStateAccount(acct, 0x101)
+	print("%#x", "with uint payload", acct)
+	print("%v", "with uint payload", acct)
+
+	// Output:
+	// EmptyRootHash == 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+	// EmptyCodeHash == 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+	// "%#x" without registered extras:   &{0x0 0x0 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 <nil>}
+	// "%#x" with unset uint payload:     &{0x0 0x0 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 <nil>[*StateAccountExtra[uint]]}
+	// "%#x" with uint payload:           &{0x0 0x0 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 pseudo.Type[uint]{0x101}}
+	// "%v" with uint payload:            &{0 0 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 [197 210 70 1 134 247 35 60 146 126 125 178 220 199 3 192 229 0 182 83 202 130 39 59 123 250 216 4 93 133 164 112] pseudo.Type[uint]{257}}
 }
