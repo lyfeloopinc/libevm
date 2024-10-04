@@ -24,7 +24,7 @@ import (
 // GetExtra returns the extra payload from the [types.StateAccount] associated
 // with the address, or a zero-value `SA` if not found. The
 // [types.ExtraPayloads] MUST be sourced from [types.RegisterExtras].
-func GetExtra[SA any](s *StateDB, p types.ExtraPayloads[SA], addr common.Address) SA {
+func GetExtra[SA types.StateAccountPayload[SA]](s *StateDB, p types.ExtraPayloads[SA], addr common.Address) SA {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
 		return p.FromStateAccount(&stateObject.data)
@@ -34,14 +34,14 @@ func GetExtra[SA any](s *StateDB, p types.ExtraPayloads[SA], addr common.Address
 }
 
 // SetExtra sets the extra payload for the address. See [GetExtra] for details.
-func SetExtra[SA any](s *StateDB, p types.ExtraPayloads[SA], addr common.Address, extra SA) {
+func SetExtra[SA types.StateAccountPayload[SA]](s *StateDB, p types.ExtraPayloads[SA], addr common.Address, extra SA) {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		setExtraOnObject(stateObject, p, addr, extra)
 	}
 }
 
-func setExtraOnObject[SA any](s *stateObject, p types.ExtraPayloads[SA], addr common.Address, extra SA) {
+func setExtraOnObject[SA types.StateAccountPayload[SA]](s *stateObject, p types.ExtraPayloads[SA], addr common.Address, extra SA) {
 	s.db.journal.append(extraChange[SA]{
 		payloads: p,
 		account:  &addr,
@@ -51,7 +51,7 @@ func setExtraOnObject[SA any](s *stateObject, p types.ExtraPayloads[SA], addr co
 }
 
 // extraChange is a [journalEntry] for [SetExtra] / [setExtraOnObject].
-type extraChange[SA any] struct {
+type extraChange[SA types.StateAccountPayload[SA]] struct {
 	payloads types.ExtraPayloads[SA]
 	account  *common.Address
 	prev     SA

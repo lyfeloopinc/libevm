@@ -27,18 +27,24 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/libevm/clonable"
 	"github.com/ethereum/go-ethereum/libevm/ethtest"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
+type arbitraryPayload struct {
+	Data string
+}
+
+func (p arbitraryPayload) Clone() arbitraryPayload {
+	return p
+}
+
 func TestStateAccountExtraViaTrieStorage(t *testing.T) {
 	rng := ethtest.NewPseudoRand(1984)
 	addr := rng.Address()
 
-	type arbitraryPayload struct {
-		Data string
-	}
 	const arbitraryData = "Hello, RLP world!"
 
 	var (
@@ -71,38 +77,38 @@ func TestStateAccountExtraViaTrieStorage(t *testing.T) {
 		{
 			name: "true-boolean payload",
 			registerAndSetExtra: func(a *types.StateAccount) *types.StateAccount {
-				types.RegisterExtras[bool]().SetOnStateAccount(a, true)
+				types.RegisterExtras[clonable.Bool]().SetOnStateAccount(a, true)
 				return a
 			},
 			assertExtra: func(t *testing.T, sa *types.StateAccount) {
 				t.Helper()
-				assert.Truef(t, types.ExtraPayloads[bool]{}.FromStateAccount(sa), "")
+				assert.Truef(t, types.ExtraPayloads[clonable.Bool]{}.FromStateAccount(sa).Unwrap(), "")
 			},
 			wantTrieHash: trueBool,
 		},
 		{
 			name: "explicit false-boolean payload",
 			registerAndSetExtra: func(a *types.StateAccount) *types.StateAccount {
-				p := types.RegisterExtras[bool]()
+				p := types.RegisterExtras[clonable.Bool]()
 				p.SetOnStateAccount(a, false) // the explicit part
 				return a
 			},
 			assertExtra: func(t *testing.T, sa *types.StateAccount) {
 				t.Helper()
-				assert.Falsef(t, types.ExtraPayloads[bool]{}.FromStateAccount(sa), "")
+				assert.Falsef(t, types.ExtraPayloads[clonable.Bool]{}.FromStateAccount(sa).Unwrap(), "")
 			},
 			wantTrieHash: falseBool,
 		},
 		{
 			name: "implicit false-boolean payload",
 			registerAndSetExtra: func(a *types.StateAccount) *types.StateAccount {
-				types.RegisterExtras[bool]()
+				types.RegisterExtras[clonable.Bool]()
 				// Note that `a` is reflected, unchanged (the implicit part).
 				return a
 			},
 			assertExtra: func(t *testing.T, sa *types.StateAccount) {
 				t.Helper()
-				assert.Falsef(t, types.ExtraPayloads[bool]{}.FromStateAccount(sa), "")
+				assert.Falsef(t, types.ExtraPayloads[clonable.Bool]{}.FromStateAccount(sa).Unwrap(), "")
 			},
 			wantTrieHash: falseBool,
 		},

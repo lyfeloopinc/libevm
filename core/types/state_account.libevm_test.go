@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/libevm/clonable"
 	"github.com/ethereum/go-ethereum/libevm/pseudo"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -46,7 +47,7 @@ func TestStateAccountRLP(t *testing.T) {
 	explicitFalseBoolean := test{
 		name: "explicit false-boolean extra",
 		register: func() {
-			RegisterExtras[bool]()
+			RegisterExtras[clonable.Bool]()
 		},
 		acc: &StateAccount{
 			Nonce:    0x444444,
@@ -54,7 +55,7 @@ func TestStateAccountRLP(t *testing.T) {
 			Root:     common.Hash{},
 			CodeHash: []byte{0xbb, 0xbb, 0xbb},
 			Extra: &StateAccountExtra{
-				t: pseudo.From(false).Type,
+				t: pseudo.From[clonable.Bool](false).Type,
 			},
 		},
 		wantHex: `0xee8344444483666666a0000000000000000000000000000000000000000000000000000000000000000083bbbbbb80`,
@@ -76,7 +77,7 @@ func TestStateAccountRLP(t *testing.T) {
 		{
 			name: "true-boolean extra",
 			register: func() {
-				RegisterExtras[bool]()
+				RegisterExtras[clonable.Bool]()
 			},
 			acc: &StateAccount{
 				Nonce:    0x444444,
@@ -84,7 +85,7 @@ func TestStateAccountRLP(t *testing.T) {
 				Root:     common.Hash{},
 				CodeHash: []byte{0xbb, 0xbb, 0xbb},
 				Extra: &StateAccountExtra{
-					t: pseudo.From(true).Type,
+					t: pseudo.From[clonable.Bool](true).Type,
 				},
 			},
 			wantHex: `0xee8344444483666666a0000000000000000000000000000000000000000000000000000000000000000083bbbbbb01`,

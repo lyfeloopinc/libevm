@@ -20,10 +20,15 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/libevm/clonable"
 	"github.com/ethereum/go-ethereum/libevm/pseudo"
 	"github.com/ethereum/go-ethereum/libevm/testonly"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+type StateAccountPayload[T any] interface {
+	clonable.ClonerOf[T]
+}
 
 // RegisterExtras registers the type `SA` to be carried as an extra payload in
 // [StateAccount] structs. It is expected to be called in an `init()` function
@@ -36,7 +41,7 @@ import (
 //
 // The payload can be acced via the [ExtraPayloads.FromStateAccount] method of
 // the accessor returned by RegisterExtras.
-func RegisterExtras[SA any]() ExtraPayloads[SA] {
+func RegisterExtras[SA StateAccountPayload[SA]]() ExtraPayloads[SA] {
 	if registeredExtras != nil {
 		panic("re-registration of Extras")
 	}
@@ -84,14 +89,14 @@ func (e *StateAccountExtra) clone() *StateAccountExtra {
 // ExtraPayloads provides strongly typed access to the extra payload carried by
 // [StateAccount] structs. The only valid way to construct an instance is by a
 // call to [RegisterExtras].
-type ExtraPayloads[SA any] struct {
+type ExtraPayloads[SA StateAccountPayload[SA]] struct {
 	_ struct{} // make godoc show unexported fields so nobody tries to make their own instance ;)
 }
 
 func (ExtraPayloads[SA]) cloneStateAccount(s *StateAccountExtra) *StateAccountExtra {
 	v := pseudo.MustNewValue[SA](s.t)
 	return &StateAccountExtra{
-		t: pseudo.From(v.Get()).Type,
+		t: pseudo.From(v.Get().Clone()).Type,
 	}
 }
 
