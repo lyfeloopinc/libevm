@@ -26,8 +26,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-type StateAccountPayload[T any] interface {
-	clonable.ClonerOf[T]
+// A StateAccountPayload is an arbitrary data payload to be added as an extra
+// field in [StateAccount] and [SlimAccount] structs. See [RegisterExtras].
+type StateAccountPayload[Self any] interface {
+	// StateAccountPayloads MUST be able to make deep copies of themselves.
+	clonable.ClonerOf[Self]
 }
 
 // RegisterExtras registers the type `SA` to be carried as an extra payload in
@@ -121,8 +124,8 @@ func (ExtraPayloads[SA]) SetOnStateAccount(a *StateAccount, val SA) {
 	a.extra().t = pseudo.From(val).Type
 }
 
-// A StateAccountExtra carries the extra payload, if any, registered with
-// [RegisterExtras]. It SHOULD NOT be used directly; instead use the
+// A StateAccountExtra carries the [StateAccountPayload], if any, registered
+// with [RegisterExtras]. It SHOULD NOT be used directly; instead use the
 // [ExtraPayloads] accessor returned by RegisterExtras.
 type StateAccountExtra struct {
 	t *pseudo.Type
