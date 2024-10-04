@@ -16,6 +16,8 @@
 
 package vm
 
+import "github.com/ethereum/go-ethereum/common"
+
 // A CallOption modifies the default behaviour of a contract call.
 type CallOption interface {
 	libevmCallOption() // noop to only allow internally defined options
@@ -28,11 +30,15 @@ type CallOption interface {
 //
 // Deprecated: this option MUST NOT be used other than to allow migration to
 // libevm when backwards compatibility is required.
-func WithUNSAFECallerAddressProxying() CallOption {
-	return callOptUNSAFECallerAddressProxy{}
+func WithUNSAFECallerAddressProxying(caller common.Address) CallOption {
+	return callOptUNSAFECallerAddressProxy{
+		caller: caller,
+	}
 }
 
 // Deprecated: see [WithUNSAFECallerAddressProxying].
-type callOptUNSAFECallerAddressProxy struct{}
+type callOptUNSAFECallerAddressProxy struct {
+	caller common.Address
+}
 
 func (callOptUNSAFECallerAddressProxy) libevmCallOption() {}

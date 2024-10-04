@@ -94,7 +94,7 @@ func (e *environment) callContract(typ callType, addr common.Address, input []by
 		case callOptUNSAFECallerAddressProxy:
 			// Note that, in addition to being unsafe, this breaks an EVM
 			// assumption that the caller ContractRef is always a *Contract.
-			caller = AccountRef(e.self.CallerAddress)
+			caller = AccountRef(o.caller)
 		case nil:
 		default:
 			return nil, gas, fmt.Errorf("unsupported option %T", o)
