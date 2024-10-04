@@ -46,7 +46,7 @@ func TestGetSetExtra(t *testing.T) {
 	extra := rng.Bytes(8)
 
 	views := newWithSnaps(t)
-	stateDB := views.stateDB
+	stateDB := views.newStateDB(t, types.EmptyRootHash)
 	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if before account creation", extra)
 	stateDB.CreateAccount(addr)
 	stateDB.SetNonce(addr, nonce)
@@ -87,22 +87,40 @@ func TestGetSetExtra(t *testing.T) {
 		require.Falsef(t, iter.Next(), "%T.Next() after first account (i.e. only one)", iter)
 	})
 
-	t.Run(fmt.Sprintf("retrieve from new %T", views.stateDB), func(t *testing.T) {
-		stateDB, err := state.New(root, views.database, views.snaps)
-		require.NoError(t, err, "state.New()")
+	t.Run(fmt.Sprintf("retrieve from new %T", stateDB), func(t *testing.T) {
+		s := views.newStateDB(t, root)
+		assert.Equalf(t, nonce, s.GetNonce(addr), "%T.GetNonce()", s)
+		assert.Equalf(t, balance, s.GetBalance(addr), "%T.GetBalance()", s)
+		assert.Equal(t, extra, state.GetExtra(s, payloads, addr), "state.GetExtra()")
+	})
 
-		// triggers SlimAccount RLP decoding
-		assert.Equalf(t, nonce, stateDB.GetNonce(addr), "%T.GetNonce()", stateDB)
-		assert.Equalf(t, balance, stateDB.GetBalance(addr), "%T.GetBalance()", stateDB)
-		assert.Equal(t, extra, state.GetExtra(stateDB, payloads, addr), "state.GetExtra()")
+	t.Run("reverting to snapshot", func(t *testing.T) {
+		s := views.newStateDB(t, root)
+		snap := s.Snapshot()
+
+		oldExtra := extra
+		newExtra := rng.Bytes(16)
+		assert.NotEqual(t, oldExtra, newExtra, "new extra payload is different to old one")
+
+		state.SetExtra(s, payloads, addr, newExtra)
+		assert.Equalf(t, newExtra, state.GetExtra(s, payloads, addr), "state.GetExtra() after overwriting with new value")
+
+		s.RevertToSnapshot(snap)
+		assert.Equalf(t, oldExtra, state.GetExtra(s, payloads, addr), "state.GetExtra() after reverting to snapshot")
 	})
 }
 
 // stateViews are different ways to access the same data.
 type stateViews struct {
-	stateDB  *state.StateDB
 	snaps    *snapshot.Tree
 	database state.Database
+}
+
+func (v stateViews) newStateDB(t *testing.T, root common.Hash) *state.StateDB {
+	t.Helper()
+	s, err := state.New(root, v.database, v.snaps)
+	require.NoError(t, err, "state.New()")
+	return s
 }
 
 func newWithSnaps(t *testing.T) stateViews {
@@ -120,13 +138,8 @@ func newWithSnaps(t *testing.T) stateViews {
 	)
 	require.NoError(t, err, "snapshot.New()")
 
-	database := state.NewDatabase(ethDB)
-	stateDB, err := state.New(empty, database, snaps)
-	require.NoError(t, err, "state.New()")
-
 	return stateViews{
-		stateDB:  stateDB,
 		snaps:    snaps,
-		database: database,
+		database: state.NewDatabase(ethDB),
 	}
 }
