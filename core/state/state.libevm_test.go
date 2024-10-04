@@ -18,6 +18,7 @@ package state_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -35,25 +36,34 @@ import (
 )
 
 func TestGetSetExtra(t *testing.T) {
+	type accountExtra struct {
+		// Data is a pointer to test deep copying.
+		Data *[]byte // MUST be exported; I spent 20 minutes investigating failing tests because I'm an idiot
+	}
+
 	types.TestOnlyClearRegisteredExtras()
 	t.Cleanup(types.TestOnlyClearRegisteredExtras)
-	payloads := types.RegisterExtras[[]byte]()
+	// Just as its Data field is a pointer, the registered type is a pointer to
+	// test deep copying.
+	payloads := types.RegisterExtras[*accountExtra]()
 
 	rng := ethtest.NewPseudoRand(42)
 	addr := rng.Address()
 	nonce := rng.Uint64()
 	balance := rng.Uint256()
-	extra := rng.Bytes(8)
+	buf := rng.Bytes(8)
+	extra := &accountExtra{Data: &buf}
 
 	views := newWithSnaps(t)
 	stateDB := views.newStateDB(t, types.EmptyRootHash)
+
 	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if before account creation", extra)
 	stateDB.CreateAccount(addr)
 	stateDB.SetNonce(addr, nonce)
 	stateDB.SetBalance(addr, balance)
 	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if after account creation but before SetExtra()", extra)
 	state.SetExtra(stateDB, payloads, addr, extra)
-	assert.Equal(t, extra, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() immediately after SetExtra()")
+	require.Equal(t, extra, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() immediately after SetExtra()")
 
 	root, err := stateDB.Commit(1, false) // arbitrary block number
 	require.NoErrorf(t, err, "%T.Commit(1, false)", stateDB)
@@ -99,14 +109,31 @@ func TestGetSetExtra(t *testing.T) {
 		snap := s.Snapshot()
 
 		oldExtra := extra
-		newExtra := rng.Bytes(16)
-		assert.NotEqual(t, oldExtra, newExtra, "new extra payload is different to old one")
+		buf := append(*oldExtra.Data, rng.Bytes(8)...)
+		newExtra := &accountExtra{Data: &buf}
 
 		state.SetExtra(s, payloads, addr, newExtra)
 		assert.Equalf(t, newExtra, state.GetExtra(s, payloads, addr), "state.GetExtra() after overwriting with new value")
-
 		s.RevertToSnapshot(snap)
 		assert.Equalf(t, oldExtra, state.GetExtra(s, payloads, addr), "state.GetExtra() after reverting to snapshot")
+	})
+
+	t.Run(fmt.Sprintf("%T.Copy()", stateDB), func(t *testing.T) {
+		require.Equalf(t, reflect.Pointer, reflect.TypeOf(extra).Kind(), "extra-payload type")
+		require.Equalf(t, reflect.Pointer, reflect.TypeOf(extra.Data).Kind(), "extra-payload field")
+
+		orig := views.newStateDB(t, root)
+		cp := orig.Copy()
+
+		oldExtra := extra
+		buf := append(*oldExtra.Data, rng.Bytes(8)...)
+		newExtra := &accountExtra{Data: &buf}
+
+		assert.Equalf(t, oldExtra, state.GetExtra(orig, payloads, addr), "GetExtra([original %T]) before setting", orig)
+		assert.Equalf(t, oldExtra, state.GetExtra(cp, payloads, addr), "GetExtra([copy of %T]) returns the same payload", orig)
+		state.SetExtra(orig, payloads, addr, newExtra)
+		assert.Equalf(t, newExtra, state.GetExtra(orig, payloads, addr), "GetExtra([original %T]) returns overwritten payload", orig)
+		assert.Equalf(t, oldExtra, state.GetExtra(cp, payloads, addr), "GetExtra([copy of %T]) returns original payload despite overwriting on original", orig)
 	})
 }
 
