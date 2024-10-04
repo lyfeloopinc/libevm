@@ -47,11 +47,13 @@ func TestGetSetExtra(t *testing.T) {
 
 	views := newWithSnaps(t)
 	stateDB := views.stateDB
-	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if before SetExtra()", extra)
+	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if before account creation", extra)
 	stateDB.CreateAccount(addr)
 	stateDB.SetNonce(addr, nonce)
 	stateDB.SetBalance(addr, balance)
+	assert.Nilf(t, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() returns zero-value %T if after account creation but before SetExtra()", extra)
 	state.SetExtra(stateDB, payloads, addr, extra)
+	assert.Equal(t, extra, state.GetExtra(stateDB, payloads, addr), "state.GetExtra() immediately after SetExtra()")
 
 	root, err := stateDB.Commit(1, false) // arbitrary block number
 	require.NoErrorf(t, err, "%T.Commit(1, false)", stateDB)
