@@ -14,27 +14,27 @@
 // along with the go-ethereum library. If not, see
 // <http://www.gnu.org/licenses/>.
 
-package pseudo
+// Package testonly enforces functionality that MUST be limited to tests.
+package testonly
 
-// A Constructor returns newly constructed [Type] instances for a pre-registered
-// concrete type.
-type Constructor interface {
-	Zero() *Type
-	NewPointer() *Type
-	NilPointer() *Type
-}
+import (
+	"runtime"
+	"strings"
+)
 
-// NewConstructor returns a [Constructor] that builds `T` [Type] instances.
-func NewConstructor[T any]() Constructor {
-	return ctor[T]{}
-}
-
-type ctor[T any] struct{}
-
-func (ctor[T]) Zero() *Type       { return Zero[T]().Type }
-func (ctor[T]) NilPointer() *Type { return Zero[*T]().Type }
-
-func (ctor[T]) NewPointer() *Type {
-	var x T
-	return From(&x).Type
+// OrPanic runs `fn` i.f.f. called from within a testing environment.
+func OrPanic(fn func()) {
+	pc := make([]uintptr, 64)
+	runtime.Callers(0, pc)
+	frames := runtime.CallersFrames(pc)
+	for {
+		f, more := frames.Next()
+		if strings.Contains(f.File, "/testing/") || strings.HasSuffix(f.File, "_test.go") {
+			fn()
+			return
+		}
+		if !more {
+			panic("no _test.go file in call stack")
+		}
+	}
 }

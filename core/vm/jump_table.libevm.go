@@ -49,6 +49,11 @@ func (fn OperationFunc) internal() executionFunc {
 		env := &environment{
 			evm:  interpreter.evm,
 			self: scope.Contract,
+			// The CallType isn't exposed by an instruction's [Environment] and,
+			// although [UnknownCallType] is the default value, it's explicitly
+			// set to avoid future accidental setting without proper
+			// justification.
+			callType: UnknownCallType,
 		}
 		return fn(env, pc, interpreter, scope)
 	}

@@ -38,7 +38,7 @@ import (
 //	    args := &evmCallArgs{evm, staticCall, caller, addr, input, gas, nil /*value*/}
 type evmCallArgs struct {
 	evm      *EVM
-	callType callType
+	callType CallType
 
 	// args:start
 	caller ContractRef
@@ -49,14 +49,31 @@ type evmCallArgs struct {
 	// args:end
 }
 
-type callType uint8
+// A CallType refers to a *CALL* [OpCode] / respective method on [EVM].
+type CallType uint8
 
 const (
-	call callType = iota + 1
-	callCode
-	delegateCall
-	staticCall
+	UnknownCallType CallType = iota
+	Call
+	CallCode
+	DelegateCall
+	StaticCall
 )
+
+// String returns a human-readable representation of the CallType.
+func (t CallType) String() string {
+	switch t {
+	case Call:
+		return "Call"
+	case CallCode:
+		return "CallCode"
+	case DelegateCall:
+		return "DelegateCall"
+	case StaticCall:
+		return "StaticCall"
+	}
+	return fmt.Sprintf("Unknown %T(%d)", t, t)
+}
 
 // run runs the [PrecompiledContract], differentiating between stateful and
 // regular types.
@@ -105,6 +122,7 @@ func (p statefulPrecompile) Run([]byte) ([]byte, error) {
 type PrecompileEnvironment interface {
 	Environment
 
+	IncomingCallType() CallType
 	// Call is equivalent to [EVM.Call] except that the `caller` argument is
 	// removed and automatically determined according to the type of call that
 	// invoked the precompile.
@@ -117,46 +135,30 @@ func (args *evmCallArgs) env() *environment {
 		value = args.value
 	)
 	switch args.callType {
-	case staticCall:
+	case StaticCall:
 		value = new(uint256.Int)
 		fallthrough
-	case call:
+	case Call:
 		self = args.addr
 
-	case delegateCall:
+	case DelegateCall:
 		value = nil
 		fallthrough
-	case callCode:
+	case CallCode:
 		self = args.caller.Address()
 	}
 
 	// This is equivalent to the `contract` variables created by evm.*Call*()
 	// methods, for non precompiles, to pass to [EVMInterpreter.Run].
 	contract := NewContract(args.caller, AccountRef(self), value, args.gas)
-	if args.callType == delegateCall {
+	if args.callType == DelegateCall {
 		contract = contract.AsDelegate()
 	}
 
 	return &environment{
-		evm:           args.evm,
-		self:          contract,
-		forceReadOnly: args.readOnly(),
-	}
-}
-
-func (args *evmCallArgs) readOnly() bool {
-	// A switch statement provides clearer code coverage for difficult-to-test
-	// cases.
-	switch {
-	case args.callType == staticCall:
-		// evm.interpreter.readOnly is only set to true via a call to
-		// EVMInterpreter.Run() so, if a precompile is called directly with
-		// StaticCall(), then readOnly might not be set yet.
-		return true
-	case args.evm.interpreter.readOnly:
-		return true
-	default:
-		return false
+		evm:      args.evm,
+		self:     contract,
+		callType: args.callType,
 	}
 }
 
