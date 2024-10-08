@@ -34,3 +34,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           target_branch: "auto-rename-module-${{ matrix.source_commit }}"
           force: true
+          commit_prefix: "[AUTO] rename Go module + update internal import paths"
