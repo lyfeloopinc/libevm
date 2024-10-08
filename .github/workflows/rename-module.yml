@@ -38,7 +38,7 @@ jobs:
           go list .;
           go build ./...
 
-      - name: commit to "auto-rename-module-${{ matrix.source_commit }}" branch
+      - name: Commit to "auto-rename-module-${{ matrix.source_commit }}" branch
         uses: devops-infra/action-commit-push@8bc2ff9f9de7aa2a7581fc7e5b6401c04cab54c7
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
