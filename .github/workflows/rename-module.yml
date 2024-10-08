@@ -26,7 +26,7 @@ jobs:
         run: |
           go mod edit -module github.com/ava-labs/go-ethereum;
           find . -iname '*.go' | xargs sed -i -E \
-            's|^(\s.*?"github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|';
+            's|^((import?)\s.*?"github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|';
       
       - name: create rename-X branch
         uses: devops-infra/action-commit-push@8bc2ff9f9de7aa2a7581fc7e5b6401c04cab54c7
