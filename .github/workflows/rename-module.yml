@@ -25,18 +25,24 @@ jobs:
       - name: Globally update module name
         run: |
           go mod edit -module github.com/ava-labs/go-ethereum;
-          find . -iname '*.go' | xargs sed -i -E \
-            's|^((import)?\s.*?"github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|';
+          find . -iname '*.go' -o -iname '*.txt' | xargs sed -i -E \
+            's|(["`]github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|g';
       
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: 1.21.4
 
-      - name: Smoke test by `go build ./...`
-        run: | # `go list` just demonstrates the updated module name
-          go list .;
-          go build ./...
+      - name: Smoke tests
+        # `go list` shows us the module name
+        # `go build` is a rudimentary but broad test of correctness
+        # The explicitly tested packages are edge cases:
+        # - bind creates generates tests and a go.mod on the fly
+        # - rlpgen has testdata with imports that need updating
+        run: |
+          go list . | grep ava-labs;
+          go build ./...;
+          go test ./accounts/abi/bind ./rlp/rlpgen
 
       - name: Commit to "auto-rename-module-${{ matrix.source_commit }}" branch
         uses: devops-infra/action-commit-push@8bc2ff9f9de7aa2a7581fc7e5b6401c04cab54c7
