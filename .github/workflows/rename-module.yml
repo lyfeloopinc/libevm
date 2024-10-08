@@ -27,6 +27,12 @@ jobs:
           go mod edit -module github.com/ava-labs/go-ethereum;
           find . -iname '*.go' -o -iname '*.txt' | xargs sed -i -E \
             's|(["`]github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|g';
+
+      - name: Remnant references
+        run: |
+          find . -type f | \
+            xargs grep -In github.com/ethereum/go-ethereum | \
+            grep -v "https://github.com/ethereum/go-ethereum"
       
       - name: Set up Go
         uses: actions/setup-go@v5
