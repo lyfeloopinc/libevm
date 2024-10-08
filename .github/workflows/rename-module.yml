@@ -19,15 +19,25 @@ jobs:
           fetch-depth: 0 # everything
           fetch-tags: true
 
-      - name: check out source commit
+      - name: Check out source commit
         run: git checkout ${{ matrix.source_commit }}
 
-      - name: globally update module name
+      - name: Globally update module name
         run: |
           go mod edit -module github.com/ava-labs/go-ethereum;
           find . -iname '*.go' | xargs sed -i -E \
             's|^((import)?\s.*?"github\.com/)ethereum/go-ethereum|\1ava-labs/go-ethereum|';
       
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21.4
+
+      - name: Smoke test by `go build ./...`
+        run: | # `go list` just demonstrates the updated module name
+          go list .;
+          go build ./...
+
       - name: commit to "auto-rename-module-${{ matrix.source_commit }}" branch
         uses: devops-infra/action-commit-push@8bc2ff9f9de7aa2a7581fc7e5b6401c04cab54c7
         with:
